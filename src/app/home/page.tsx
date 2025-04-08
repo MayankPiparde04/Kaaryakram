@@ -3,6 +3,7 @@ import Header from "@/components/header";
 import HomeHero from "@/components/homehero";
 import PoojaItems from "@/components/poojaitems";
 import HinduPoojas from "@/components/hindupoojas";
+import Footer from "@/components/footer";
 
 export default function Page() {
   return (
@@ -18,6 +19,9 @@ export default function Page() {
         <PoojaItems />
         <HinduPoojas />
       </main>
+      <footer>
+        <Footer/>
+      </footer>
     </div>
   );
 }
