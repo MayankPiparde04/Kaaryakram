@@ -332,6 +332,61 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Our Mentor */}
+      <section>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-12 max-w-2xl mx-auto"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Mentor</h2>
+          <p className="text-muted-foreground">
+            The guiding force behind our project, providing expertise and direction
+          </p>
+        </motion.div>
+        
+        <div className="flex justify-center">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="max-w-lg"
+          >
+            <Card className="bg-secondary/10 shadow-md border-none overflow-hidden text-center hover:shadow-xl transition-shadow duration-300">
+              <CardContent className="p-8">
+                <motion.div 
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                  className="relative h-52 w-52 mx-auto rounded-full overflow-hidden mb-6 shadow-lg border-4 border-primary/20"
+                >
+                  <Image
+                    src="/mentor-placeholder.jpg" /* Replace with actual mentor image */
+                    alt="Project Mentor"
+                    fill
+                    className="object-cover"
+                  />
+                </motion.div>
+                <h3 className="text-2xl font-bold mb-2">Prof. Anurag Punde</h3> {/* Replace with actual mentor name */}
+                <p className="text-primary font-medium mb-3">Project Mentor</p>
+                <p className="text-muted-foreground mb-5">
+                  With over 13 years of experience in software engineering and project management, 
+                  our mentor provides invaluable guidance and expertise to ensure the success of Kaaryakram.
+                </p>
+                <div className="flex justify-center space-x-3">
+                  <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect width="4" height="12" x="2" y="9"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+                  </a>
+                  <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"></line></svg>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Our Team */}
       <section>
         <motion.div
