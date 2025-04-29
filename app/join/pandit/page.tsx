@@ -37,32 +37,34 @@ import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth"
+import { panditSchema } from "@/lib/Roles/Pandit/panditSchema"
+import { Badge } from "@/components/ui/badge"
 
-const formSchema = z.object({
-  experience: z.string().min(1, { message: "Please enter your years of experience" }),
-  specialization: z.string().min(1, { message: "Please select your specialization" }),
-  additionalSpecializations: z.array(z.string()).optional(),
-  languages: z.string().min(1, { message: "Please enter languages you speak" }),
-  address: z.string().min(1, { message: "Please enter your address" }),
-  city: z.string().min(1, { message: "Please enter your city" }),
-  state: z.string().min(1, { message: "Please enter your state" }),
-  pincode: z.string().min(6, { message: "Please enter a valid PIN code" }),
-  bio: z.string().min(10, { message: "Bio must be at least 10 characters" }),
-  certificates: z.string().optional(),
-  certificateFiles: z.array(z.string()).optional(),
-  educationLevel: z.string().min(1, { message: "Please select your education level" }),
-  guruParampara: z.string().optional(),
-  availableTimes: z.object({
-    mornings: z.boolean().optional(),
-    afternoons: z.boolean().optional(),
-    evenings: z.boolean().optional(),
-    weekends: z.boolean().optional(),
-  }),
-  travelDistance: z.string().min(1, { message: "Please select your travel distance" }),
-  ritualTypes: z.array(z.string()).min(1, { message: "Please select at least one ritual type" }),
-  profileImage: z.string().optional(),
-  agreeToTerms: z.boolean().refine(val => val, { message: "You must agree to the terms and conditions" })
-})
+// const formSchema = z.object({
+//   experience: z.string().min(1, { message: "Please enter your years of experience" }),
+//   specialization: z.string().min(1, { message: "Please select your specialization" }),
+//   additionalSpecializations: z.array(z.string()).optional(),
+//   languages: z.string().min(1, { message: "Please enter languages you speak" }),
+//   address: z.string().min(1, { message: "Please enter your address" }),
+//   city: z.string().min(1, { message: "Please enter your city" }),
+//   state: z.string().min(1, { message: "Please enter your state" }),
+//   pincode: z.string().min(6, { message: "Please enter a valid PIN code" }),
+//   bio: z.string().min(10, { message: "Bio must be at least 10 characters" }),
+//   certificates: z.string().optional(),
+//   certificateFiles: z.array(z.string()).optional(),
+//   educationLevel: z.string().min(1, { message: "Please select your education level" }),
+//   guruParampara: z.string().optional(),
+//   availableTimes: z.object({
+//     mornings: z.boolean().optional(),
+//     afternoons: z.boolean().optional(),
+//     evenings: z.boolean().optional(),
+//     weekends: z.boolean().optional(),
+//   }),
+//   travelDistance: z.string().min(1, { message: "Please select your travel distance" }),
+//   ritualTypes: z.array(z.string()).min(1, { message: "Please select at least one ritual type" }),
+//   profileImage: z.string().optional(),
+//   agreeToTerms: z.boolean().refine(val => val, { message: "You must agree to the terms and conditions" })
+// })
 
 export default function PanditApplicationPage() {
   const { user } = useAuth()
@@ -88,8 +90,8 @@ export default function PanditApplicationPage() {
     }
   }, [shouldRedirect, router])
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof panditSchema>>({
+    resolver: zodResolver(panditSchema),
     defaultValues: {
       experience: "",
       specialization: "",
@@ -156,7 +158,7 @@ export default function PanditApplicationPage() {
     }
   };
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof panditSchema>) {
     setIsSubmitting(true)
     try {
       // In a real app, this would be an API call

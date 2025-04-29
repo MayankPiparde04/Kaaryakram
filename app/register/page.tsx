@@ -6,7 +6,7 @@ import Image from "next/image"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { Eye, EyeOff, UserPlus, Mail, Phone, KeyRound, ArrowLeft, User } from "lucide-react"
+import { Eye, EyeOff, UserPlus, Mail, Phone, KeyRound, ArrowLeft, User, Users } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { Button } from "@/components/ui/button"
@@ -22,20 +22,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Checkbox } from "@/components/ui/checkbox";
+import { UserSchema, userSchema } from "@/lib/User/userSchema"
 
-const formSchema = z
-  .object({
-    name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-    email: z.string().email({ message: "Please enter a valid email address" }),
-    phone: z.string().min(10, { message: "Please enter a valid phone number" }),
-    password: z.string().min(6, { message: "Password must be at least 6 characters" }),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  })
+// const formSchema = z
+//   .object({
+//     name: z.string().min(2, { message: "Name must be at least 2 characters" }),
+//     email: z.string().email({ message: "Please enter a valid email address" }),
+//     phone: z.string().min(10, { message: "Please enter a valid phone number" }),
+//     password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+//     confirmPassword: z.string(),
+//   })
+//   .refine((data) => data.password === data.confirmPassword, {
+//     message: "Passwords do not match",
+//     path: ["confirmPassword"],
+//   })
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -44,8 +45,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<UserSchema>({
+    resolver: zodResolver(userSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -55,7 +56,7 @@ export default function RegisterPage() {
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: UserSchema) {
     setIsLoading(true)
     try {
       await register(values.name, values.email, values.phone, values.password)
