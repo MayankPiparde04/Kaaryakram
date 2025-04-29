@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   ChevronLeft,
   CreditCard,
@@ -117,16 +119,106 @@ const itemVariants = {
 };
 
 // Generate Invoice function
-const generateAndDownloadInvoice = (orderDetails : any) => {
-  // In a real application, you would use a library like jspdf or pdfmake
-  // For this example, we'll just simulate a download
-  const filename = `kaaryakram-invoice-${orderDetails.orderNumber}.pdf`;
-  
-  // Show success message
-  orderDetails.toast({
-    title: "Invoice downloaded",
-    description: `Your invoice has been downloaded as ${filename}`,
-  });
+const generateAndDownloadInvoice = (orderDetails: any) => {
+  try {
+    // Create a new PDF document
+    const doc = new jsPDF();
+    
+    // Add company logo/header
+    doc.setFontSize(20);
+    doc.text("Kaaryakram", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text("Invoice", 105, 30, { align: "center" });
+    
+    // Add invoice details
+    doc.setFontSize(12);
+    doc.text(`Invoice Number: ${orderDetails.orderNumber}`, 15, 40);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 15, 45);
+    
+    // Add customer details
+    doc.text("Customer Details:", 15, 55);
+    doc.setFontSize(10);
+    doc.text(`Name: ${orderDetails.formData.firstName} ${orderDetails.formData.lastName}`, 15, 60);
+    doc.text(`Address: ${orderDetails.formData.address}`, 15, 65);
+    doc.text(`${orderDetails.formData.city}, ${orderDetails.formData.state} - ${orderDetails.formData.pincode}`, 15, 70);
+    doc.text(`Phone: ${orderDetails.formData.phone}`, 15, 75);
+    doc.text(`Email: ${orderDetails.formData.email}`, 15, 80);
+    
+    // Add order items table
+    const tableColumn = ["Item", "Quantity", "Price", "Total"];
+    const tableRows = [];
+    
+    orderDetails.cartItems.forEach(item => {
+      const itemData = [
+        item.name,
+        item.quantity,
+        `₹${item.price}`,
+        `₹${item.price * item.quantity}`
+      ];
+      tableRows.push(itemData);
+    });
+    
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 90,
+      theme: 'grid',
+      headStyles: { fillColor: [100, 100, 100] }
+    });
+    
+    // Add totals
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.text(`Subtotal: ₹${orderDetails.subtotal}`, 140, finalY, { align: "right" });
+    doc.text(`GST (18%): ₹${orderDetails.gst}`, 140, finalY + 5, { align: "right" });
+    doc.text(`Delivery Fee: ${orderDetails.deliveryFee === 0 ? 'FREE' : `₹${orderDetails.deliveryFee}`}`, 140, finalY + 10, { align: "right" });
+    doc.setFontSize(12);
+    doc.text(`Total: ₹${orderDetails.total}`, 140, finalY + 20, { align: "right" });
+    
+    // Add payment info
+    doc.setFontSize(10);
+    doc.text("Payment Information:", 15, finalY + 35);
+    doc.text(`Payment Method: ${
+      orderDetails.formData.paymentMethod === "card" ? "Credit/Debit Card" :
+      orderDetails.formData.paymentMethod === "upi" ? "UPI" :
+      "Cash on Delivery"
+    }`, 15, finalY + 40);
+    
+    // Add delivery info
+    doc.text("Delivery Information:", 15, finalY + 50);
+    doc.text(`Delivery Method: ${
+      orderDetails.formData.deliveryMethod === "standard" ? "Standard Delivery" : "Express Delivery"
+    }`, 15, finalY + 55);
+    doc.text(`Expected Delivery: ${new Date(orderDetails.deliveryDate).toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}`, 15, finalY + 60);
+    
+    // Add footer
+    doc.setFontSize(10);
+    doc.text("Thank you for your purchase!", 105, finalY + 75, { align: "center" });
+    doc.text("For any queries, contact support@kaaryakram.com", 105, finalY + 80, { align: "center" });
+    
+    // Generate PDF file name
+    const filename = `kaaryakram-invoice-${orderDetails.orderNumber}.pdf`;
+    
+    // Download the PDF
+    doc.save(filename);
+    
+    // Show success message
+    orderDetails.toast({
+      title: "Invoice downloaded",
+      description: `Your invoice has been downloaded as ${filename}`,
+    });
+  } catch (error) {
+    console.error("Error generating invoice:", error);
+    orderDetails.toast({
+      title: "Error downloading invoice",
+      description: "There was a problem generating your invoice. Please try again.",
+      variant: "destructive",
+    });
+  }
 };
 
 export default function CheckoutPage() {
@@ -336,7 +428,14 @@ export default function CheckoutPage() {
                 variant="outline" 
                 onClick={() => generateAndDownloadInvoice({
                   orderNumber,
-                  toast
+                  toast,
+                  formData,
+                  cartItems,
+                  subtotal,
+                  gst,
+                  deliveryFee,
+                  total,
+                  deliveryDate
                 })}
                 className="flex items-center gap-2"
               >

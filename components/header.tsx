@@ -443,7 +443,7 @@ export default function Header() {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/orders" className="cursor-pointer">
+                    <Link href="/order" className="cursor-pointer">
                       <Package className="mr-2 h-4 w-4" />
                       Orders
                     </Link>
