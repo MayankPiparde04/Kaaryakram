@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,7 +12,12 @@ import {
   ArrowRight,
   Eye,
   ChevronRight,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+import { z } from "zod";
+import axios from "axios";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,177 +71,46 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Sample data for products
-const products = [
-  {
-    id: 1,
-    name: "Ghee Diya",
-    description: "Pure cow ghee diya for auspicious ceremonies",
-    price: 199,
-    image: "/poojaitems/ghee.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 2,
-    name: "Kumkum",
-    description: "High-quality kumkum for rituals",
-    price: 99,
-    image: "/poojaitems/kumkum.webp?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 3,
-    name: "Incense Sticks",
-    description: "Fragrant incense sticks for daily prayers",
-    price: 149,
-    image: "/poojaitems/agarbatti.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 4,
-    name: "Camphor",
-    description: "Pure camphor for aarti ceremonies",
-    price: 129,
-    image: "/poojaitems/kapoor.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 5,
-    name: "Flowers",
-    description: "Fresh flowers for offerings",
-    price: 249,
-    image: "/poojaitems/flowers.webp?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 6,
-    name: "Coconut",
-    description: "Auspicious coconut for rituals",
-    price: 79,
-    image: "/poojaitems/coconut.webp?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 7,
-    name: "Betel Leaves",
-    description: "Fresh betel leaves used in pooja offerings",
-    price: 59,
-    image: "/poojaitems/betel-leaf.webp?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 8,
-    name: "Turmeric",
-    description: "Natural haldi powder for sacred rituals",
-    price: 49,
-    image: "/poojaitems/haldi-powder.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 9,
-    name: "Akshat (Rice)",
-    description: "Sacred rice grains for blessings and rituals",
-    price: 39,
-    image: "/poojaitems/akshat-rice.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 10,
-    name: "Cotton Wicks",
-    description: "High-quality cotton wicks for diya lighting",
-    price: 35,
-    image: "/poojaitems/cotton-wicks.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 11,
-    name: "Dhoopbatti",
-    description: "Natural dhoop sticks for spiritual atmosphere",
-    price: 89,
-    image: "/poojaitems/dhoopbatti.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 12,
-    name: "Sandalwood Powder",
-    description: "Premium sandalwood powder for rituals",
-    price: 199,
-    image: "/poojaitems/sandalwood&powder.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 13,
-    name: "Mala",
-    description: "Sacred garlands for worship and offerings",
-    price: 149,
-    image: "/poojaitems/mala.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 14,
-    name: "Diya",
-    description: "Clay diya for lighting and sacred offerings",
-    price: 29,
-    image: "/poojaitems/diya.png?height=200&width=200",
-    category: "samagri",
-  },
-  {
-    id: 15,
-    name: "Satyanarayan Pooja",
-    description: "Complete pooja service to worship Lord Vishnu",
-    price: 5999,
-    image: "/poojas/Satyanarayan_pooja.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 16,
-    name: "Griha Pravesh",
-    description: "Housewarming ritual with all traditional procedures",
-    price: 7999,
-    image: "/poojas/Griha-pravesh.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 17,
-    name: "Ganesh Pooja",
-    description: "Ritual to seek Lord Ganesha’s blessings",
-    price: 4999,
-    image: "/poojas/Ganesh-Pooja.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 18,
-    name: "Lakshmi Pooja",
-    description: "Pooja to invoke wealth and prosperity blessings",
-    price: 6499,
-    image: "/poojas/Lakshmi_pooja.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 19,
-    name: "Navagraha Pooja",
-    description: "Ritual to appease all nine planetary deities",
-    price: 8999,
-    image: "/poojas/Navagraha_pooja.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 20,
-    name: "Rudrabhishek",
-    description: "Pooja of Lord Shiva with Rudra chanting",
-    price: 7499,
-    image: "/poojas/Rudra_Abhishek.png?height=200&width=200",
-    category: "pooja",
-  },
-  {
-    id: 21,
-    name: "Durga Pooja",
-    description: "Worship of Goddess Durga for strength and protection",
-    price: 7999,
-    image: "/poojas/Durga_pooja.png?height=200&width=200",
-    category: "pooja",
-  },
-];
+// Define schemas for validation with flexibility
+const productSchema = z
+  .object({
+    _id: z.string().optional(),
+    id: z.union([z.string(), z.number()]).optional(),
+    name: z.string(),
+    description: z.string().optional().default("No description available"),
+    price: z.number(),
+    imageUrl: z.string().optional(),
+    category: z.string().optional().default("samagri"),
+  })
+  .transform((data) => {
+    return {
+      ...data,
+      id: data.id || data._id || Math.random().toString(36).substring(2),
+      image: data.imageUrl || "/placeholder.svg",
+      category: data.category || "samagri",
+    };
+  });
+
+const poojaSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).optional(),
+    _id: z.string().optional(),
+    name: z.string(),
+    description: z.string().optional().default("No description available"),
+    price: z.number().optional().default(0),
+    images: z.array(z.string()).optional(),
+    category: z.string().optional().default("pooja"),
+  })
+  .transform((data) => {
+    return {
+      ...data,
+      id: data.id || data._id || Math.random().toString(36).substring(2),
+      image: (data.images ?? [])[0] || "/placeholder.svg",
+      category: data.category || "pooja",
+    };
+  });
+
+type Product = z.infer<typeof productSchema>;
 
 export default function ShopPage() {
   const { toast } = useToast();
@@ -245,12 +119,70 @@ export default function ShopPage() {
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [sortOption, setSortOption] = useState("featured");
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [wishlist, setWishlist] = useState<number[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [isGridView, setIsGridView] = useState(true);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
-  // Filter products based on active tab, search query, and price range
+  // Add loading and error states
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Move fetch logic into useEffect
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch both product and pooja data
+        const [productsResponse, poojasResponse] = await Promise.all([
+          axios.get("/api/products"),
+          axios.get("/api/poojas"),
+        ]);
+
+        // Process and validate each product
+        const validProducts: Product[] = [];
+
+        // Process products data
+        if (Array.isArray(productsResponse.data)) {
+          for (const item of productsResponse.data) {
+            try {
+              const validatedProduct = productSchema.parse(item);
+              
+              validProducts.push(validatedProduct);
+            } catch (err) {
+              console.warn("Invalid product:", item, err);
+            }
+          }
+        }
+
+        // Process poojas data
+        if (Array.isArray(poojasResponse.data)) {
+          for (const item of poojasResponse.data) {
+            try {
+              const validatedPooja = poojaSchema.parse(item);
+              validProducts.push(validatedPooja);
+              console.log(validProducts)
+            } catch (err) {
+              console.warn("Invalid pooja:", item, err);
+            }
+          }
+        }
+
+        setProducts(validProducts);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+        setError("Failed to fetch products. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []); // Empty dependency array means this runs once on mount
+
   const filteredProducts = products.filter((product) => {
     // Filter by category tab
     if (activeTab !== "all" && product.category !== activeTab) {
@@ -289,7 +221,7 @@ export default function ShopPage() {
     }
   });
 
-  const addToCart = (productId: number, productName: string) => {
+  const addToCart = (productId: string, productName: string) => {
     toast({
       title: "Added to cart",
       description: `${productName} has been added to your cart.`,
@@ -297,7 +229,7 @@ export default function ShopPage() {
   };
 
   // Toggle product in wishlist
-  const toggleWishlist = (productId: number, productName: string) => {
+  const toggleWishlist = (productId: string, productName: string) => {
     if (wishlist.includes(productId)) {
       setWishlist(wishlist.filter((id) => id !== productId));
       toast({
@@ -314,10 +246,74 @@ export default function ShopPage() {
   };
 
   // Open quick view modal
-  const openQuickView = (product: any) => {
+  const openQuickView = (product: Product) => {
     setSelectedProduct(product);
     setIsQuickViewOpen(true);
   };
+
+  // Loading skeleton for products
+  const ProductSkeleton = ({ grid = true }) => (
+    <div className={grid ? "" : ""}>
+      {grid ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden h-full border">
+              <div className="relative h-48 w-full bg-secondary/30 animate-pulse" />
+              <CardHeader className="p-4 pb-0">
+                <div className="h-6 bg-secondary/30 w-3/4 rounded-md animate-pulse" />
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                <div className="h-4 bg-secondary/30 w-full rounded-md animate-pulse mb-2" />
+                <div className="h-4 bg-secondary/30 w-5/6 rounded-md animate-pulse mb-2" />
+                <div className="h-6 bg-secondary/30 w-1/4 rounded-md animate-pulse mt-4" />
+              </CardContent>
+              <CardFooter className="p-4 pt-0">
+                <div className="h-10 bg-secondary/30 w-full rounded-md animate-pulse" />
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden border">
+              <div className="flex flex-col sm:flex-row">
+                <div className="h-48 sm:h-auto sm:w-48 flex-shrink-0 bg-secondary/30 animate-pulse" />
+                <div className="flex flex-col flex-grow p-4">
+                  <div className="h-6 bg-secondary/30 w-3/4 rounded-md animate-pulse mb-4" />
+                  <div className="h-4 bg-secondary/30 w-full rounded-md animate-pulse mb-2" />
+                  <div className="h-4 bg-secondary/30 w-5/6 rounded-md animate-pulse mb-2" />
+                  <div className="h-10 bg-secondary/30 w-1/3 rounded-md animate-pulse mt-4" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Error display component
+  const ErrorDisplay = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-16 text-center"
+    >
+      <div className="h-24 w-24 rounded-full bg-destructive/10 flex items-center justify-center mb-6">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+      </div>
+      <h3 className="text-xl font-medium mb-2">Failed to load products</h3>
+      <p className="text-muted-foreground mb-6">{error}</p>
+      <Button
+        onClick={() => window.location.reload()}
+        className="flex items-center gap-2"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Try Again
+      </Button>
+    </motion.div>
+  );
 
   return (
     <div className="container py-8">
@@ -752,10 +748,24 @@ export default function ShopPage() {
           </div>
         </div>
 
-        {/* Product Grid */}
+        {/* Product Grid with Loading and Error States */}
         <div className="flex-1">
           <AnimatePresence mode="wait">
-            {sortedProducts.length === 0 ? (
+            {isLoading ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <div className="flex items-center justify-center mb-6">
+                  <Loader2 className="h-6 w-6 text-primary animate-spin mr-2" />
+                  <span>Loading products...</span>
+                </div>
+                <ProductSkeleton grid={isGridView} />
+              </motion.div>
+            ) : error ? (
+              <ErrorDisplay />
+            ) : sortedProducts.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1006,18 +1016,10 @@ export default function ShopPage() {
                       >
                         1
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-8 p-0"
-                      >
+                      <Button variant="outline" size="sm" className="w-8 p-0">
                         2
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-8 p-0"
-                      >
+                      <Button variant="outline" size="sm" className="w-8 p-0">
                         3
                       </Button>
                       <Button variant="outline" size="sm">
