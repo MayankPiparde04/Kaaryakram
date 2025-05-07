@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, MapPin, ArrowRight, Star, Users, Gift, Calendar } from "lucide-react";
+import { Search, MapPin, ArrowRight, Star, Users, Gift, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -14,146 +14,188 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import axios from "axios";
+import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { z } from "zod";
 
-// Sample data for pooja items
-const poojaItems = [
-  {
-    id: 1,
-    name: "Ghee Diya",
-    image: "/poojaitems/ghee.png?height=100&width=100",
-  },
-  {
-    id: 2,
-    name: "Kumkum",
-    image: "/poojaitems/kumkum.webp?height=100&width=100",
-  },
-  {
-    id: 3,
-    name: "Incense Sticks",
-    image: "/poojaitems/agarbatti.png?height=100&width=100",
-  },
-  {
-    id: 4,
-    name: "Camphor",
-    image: "/poojaitems/kapoor.png?height=100&width=100",
-  },
-  {
-    id: 5,
-    name: "Flowers",
-    image: "/poojaitems/flowers.webp?height=100&width=100",
-  },
-  {
-    id: 6,
-    name: "Coconut",
-    image: "/poojaitems/coconut.webp?height=100&width=100",
-  },
-  {
-    id: 7,
-    name: "Betel Leaves",
-    image: "/poojaitems/betel-leaf.webp?height=100&width=100",
-  },
-  {
-    id: 8,
-    name: "Turmeric",
-    image: "/poojaitems/haldi-powder.png?height=100&width=100",
-  },
-  {
-    id: 9,
-    name: "Akshat (Rice)",
-    image: "/poojaitems/akshat-rice.png?height=100&width=100",
-  },
-  {
-    id: 10,
-    name: "Cotton Wicks",
-    image: "/poojaitems/cotton-wicks.png?height=100&width=100",
-  },
-  {
-    id: 11,
-    name: "Dhoopbatti",
-    image: "/poojaitems/dhoopbatti.png?height=100&width=100",
-  },
-  {
-    id: 12,
-    name: "Sandalwood Powder",
-    image: "/poojaitems/sandalwood&powder.png?height=100&width=100",
-  },
-  {
-    id: 13,
-    name: "Mala",
-    image: "/poojaitems/mala.png?height=100&width=100",
-  },
-  {
-    id: 14,
-    name: "Diya",
-    image: "/poojaitems/diya.png?height=100&width=100",
-  },
-];
+// Define schemas for validation with more flexibility
+const productSchema = z.object({
+  // Allow both _id and id for flexibility
+  _id: z.string().optional(),
+  id: z.union([z.string(), z.number()]).optional(),
+  name: z.string(),
+  price: z.number().optional(),
+  category: z.string().optional(),
+  stock: z.number().optional(),
+  imageUrl: z.string().optional(),
+  image: z.string().optional(), // Add fallback for image field
+}).transform(data => {
+  return {
+    ...data,
+    _id: data._id || data.id?.toString() || Math.random().toString(36).substring(2)
+  };
+});
 
-// Sample data for pooja types
-const poojaTypes = [
-  {
-    id: 1,
-    name: "Satyanarayan Pooja",
-    description: "A ritual performed to seek blessings from Lord Vishnu.",
-    image: "/poojas/Satyanarayan_pooja.png?height=200&width=300",
-    items: ["Ghee Diya", "Kumkum", "Incense Sticks", "Flowers", "Coconut"],
-  },
-  {
-    id: 2,
-    name: "Griha Pravesh",
-    description: "A housewarming ceremony to bless a new home.",
-    image: "/poojas/Griha-pravesh.png?height=200&width=300",
-    items: ["Ghee Diya", "Kumkum", "Turmeric", "Coconut", "Betel Leaves"],
-  },
-  {
-    id: 3,
-    name: "Ganesh Pooja",
-    description: "A ceremony to honor Lord Ganesha, the remover of obstacles.",
-    image: "/poojas/Ganesh-Pooja.png?height=200&width=300",
-    items: ["Ghee Diya", "Kumkum", "Incense Sticks", "Flowers", "Modak"],
-  },
-  {
-    id: 4,
-    name: "Lakshmi Pooja",
-    description:
-      "A ritual to seek blessings from Goddess Lakshmi for wealth and prosperity.",
-    image: "/poojas/Lakshmi_pooja.png?height=200&width=300",
-    items: [
-      "Ghee Diya",
-      "Lotus Flowers",
-      "Rice Grains",
-      "Lakshmi Idol",
-      "Sweets",
-    ],
-  },
-  {
-    id: 5,
-    name: "Navagraha Pooja",
-    description:
-      "A ritual to pacify the nine planetary deities and seek balance in life.",
-    image: "/poojas/Navagraha_pooja.png?height=200&width=300",
-    items: ["Navadhanya", "Ghee Diya", "Kumkum", "Flowers", "Betel Leaves"],
-  },
-  {
-    id: 6,
-    name: "Rudra Abhishek",
-    description:
-      "A powerful pooja dedicated to Lord Shiva for peace and protection.",
-    image: "/poojas/Rudra_Abhishek.png?height=200&width=300",
-    items: ["Milk", "Honey", "Bilva Leaves", "Ghee Diya", "Sandalwood Paste"],
-  },
-  {
-    id: 7,
-    name: "Durga Pooja",
-    description:
-      "A worship ritual to honor Goddess Durga and seek her divine strength.",
-    image: "/poojas/Durga_pooja.png?height=200&width=300",
-    items: ["Red Cloth", "Kumkum", "Coconut", "Flowers", "Incense Sticks"],
-  },
-];
+const poojaSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  _id: z.string().optional(),
+  name: z.string(),
+  description: z.string().optional().default(""),
+  images: z.array(z.string()).optional(),
+  items: z.array(z.string()).optional().default([]),
+  requiredItems: z.array(z.string()).optional(),
+}).transform(data => {
+  return {
+    ...data,
+    id: data.id || data._id || Math.random().toString(36).substring(2),
+    items: data.items || []
+  };
+});
+
+// Create types from the schemas
+type ProductType = z.infer<typeof productSchema>;
+type PoojaType = z.infer<typeof poojaSchema>;
 
 export default function Home() {
+  const [poojaItems, setPoojaItems] = useState<ProductType[]>([]);
+  const [poojaTypes, setPoojaTypes] = useState<PoojaType[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [loadingTypes, setLoadingTypes] = useState(true);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [typesError, setTypesError] = useState<string | null>(null);
+
+  const fetchPoojaItems = async () => {
+    try {
+      setLoadingItems(true);
+      const response = await axios.get("/api/products");
+      
+      // Log raw data for debugging
+      console.log("Raw product data:", response.data);
+      
+      // Validate each item individually for better error handling
+      const validItems: ProductType[] = [];
+      
+      if (Array.isArray(response.data)) {
+        for (const item of response.data) {
+          try {
+            const validItem = productSchema.parse(item);
+            validItems.push(validItem);
+          } catch (err) {
+            console.warn("Invalid product item:", item, err);
+          }
+        }
+        
+        if (validItems.length > 0) {
+          setPoojaItems(validItems);
+          setItemsError(null);
+        } else {
+          setItemsError("No valid products found in the response");
+        }
+      } else {
+        setItemsError("Invalid response format: expected an array");
+      }
+    } catch (err) {
+      console.error(err);
+      setItemsError("Failed to fetch pooja items");
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  const fetchPoojaTypes = async () => {
+    try {
+      setLoadingTypes(true);
+      const response = await axios.get("/api/poojas");
+      
+      // Log raw data for debugging
+      console.log("Raw pooja data:", response.data);
+      
+      // Validate each item individually for better error handling
+      const validPoojas: PoojaType[] = [];
+      
+      if (Array.isArray(response.data)) {
+        for (const pooja of response.data) {
+          try {
+            const validPooja = poojaSchema.parse(pooja);
+            validPoojas.push(validPooja);
+          } catch (err) {
+            console.warn("Invalid pooja item:", pooja, err);
+          }
+        }
+        
+        if (validPoojas.length > 0) {
+          setPoojaTypes(validPoojas);
+          setTypesError(null);
+        } else {
+          setTypesError("No valid poojas found in the response");
+        }
+      } else {
+        setTypesError("Invalid response format: expected an array");
+      }
+    } catch (err) {
+      console.error(err);
+      setTypesError("Failed to fetch pooja types");
+    } finally {
+      setLoadingTypes(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPoojaItems();
+    fetchPoojaTypes();
+  }, []);
+
+  // Skeleton loading component for items
+  const ItemsLoadingSkeleton = () => (
+    <CarouselContent>
+      {[1, 2, 3, 4, 5, 6].map((item) => (
+        <CarouselItem key={item} className="basis-1/2 md:basis-1/4 lg:basis-1/6">
+          <Card className="border-0 shadow-sm overflow-hidden">
+            <div className="rounded-lg overflow-hidden aspect-square bg-secondary/20 p-2">
+              <Skeleton className="h-full w-full" />
+            </div>
+            <CardContent className="p-3 text-center">
+              <Skeleton className="h-4 w-20 mx-auto" />
+            </CardContent>
+          </Card>
+        </CarouselItem>
+      ))}
+    </CarouselContent>
+  );
+
+  // Skeleton loading component for pooja types
+  const PoojaTypesLoadingSkeleton = () => (
+    <CarouselContent>
+      {[1, 2, 3].map((item) => (
+        <CarouselItem key={item} className="md:basis-1/2 lg:basis-1/3 p-2">
+          <Card className="overflow-hidden border shadow-md h-full">
+            <div className="relative h-48 w-full overflow-hidden">
+              <Skeleton className="h-full w-full" />
+            </div>
+            <CardContent className="p-5 space-y-3">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <div className="pt-2">
+                <Skeleton className="h-3 w-24 mb-2" />
+                <div className="flex flex-wrap gap-1.5">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-5 w-16 rounded-full" />
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="px-5 py-3 border-t bg-secondary/10">
+              <Skeleton className="h-10 w-full" />
+            </CardFooter>
+          </Card>
+        </CarouselItem>
+      ))}
+    </CarouselContent>
+  );
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section with Motion */}
@@ -339,31 +381,46 @@ export default function Home() {
             }}
             className="w-full"
           >
-            <CarouselContent>
-              {poojaItems.map((item) => (
-                <CarouselItem key={item.id} className="basis-1/2 md:basis-1/4 lg:basis-1/6">
-                  <motion.div 
-                    whileHover={{ y: -5 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card className="border-0 shadow-sm overflow-hidden">
-                      <div className="rounded-lg overflow-hidden aspect-square bg-secondary/20 p-2">
-                        <Image
-                          src={item.image || "/placeholder.svg"}
-                          alt={item.name}
-                          width={100}
-                          height={100}
-                          className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
-                        />
-                      </div>
-                      <CardContent className="p-3 text-center">
-                        <h3 className="font-medium text-sm">{item.name}</h3>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
+            {loadingItems ? (
+              <ItemsLoadingSkeleton />
+            ) : itemsError ? (
+              <div className="w-full py-8 text-center text-red-500">
+                <p>{itemsError}</p>
+                <Button 
+                  variant="outline" 
+                  onClick={fetchPoojaItems} 
+                  className="mt-3"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <CarouselContent>
+                {poojaItems.map((item) => (
+                  <CarouselItem key={item._id} className="basis-1/2 md:basis-1/4 lg:basis-1/6">
+                    <motion.div 
+                      whileHover={{ y: -5 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="border-0 shadow-sm overflow-hidden">
+                        <div className="rounded-lg overflow-hidden aspect-square bg-secondary/20 p-2">
+                          <Image
+                            src={item.imageUrl || "/placeholder.svg"}
+                            alt={item.name}
+                            width={100}
+                            height={100}
+                            className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
+                          />
+                        </div>
+                        <CardContent className="p-3 text-center">
+                          <h3 className="font-medium text-sm">{item.name}</h3>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            )}
             <div className="hidden md:flex">
               <CarouselPrevious className="-left-12" />
               <CarouselNext className="-right-12" />
@@ -405,56 +462,71 @@ export default function Home() {
             }}
             className="w-full"
           >
-            <CarouselContent>
-              {poojaTypes.map((pooja) => (
-                <CarouselItem key={pooja.id} className="md:basis-1/2 lg:basis-1/3 p-2">
-                  <motion.div 
-                    whileHover={{ y: -5 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card className="overflow-hidden border shadow-md h-full">
-                      <div className="relative h-48 w-full overflow-hidden">
-                        <Badge className="absolute top-3 right-3 z-10 bg-primary text-primary-foreground">
-                          Popular
-                        </Badge>
-                        <Image
-                          src={pooja.image || "/placeholder.svg"}
-                          alt={pooja.name}
-                          fill
-                          className="object-cover transition-transform duration-300 hover:scale-105"
-                        />
-                      </div>
-                      <CardContent className="p-5">
-                        <h3 className="text-xl font-bold mb-2">{pooja.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          {pooja.description}
-                        </p>
-                        <div>
-                          <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-muted-foreground">
-                            Includes:
-                          </h4>
-                          <div className="flex flex-wrap gap-1.5">
-                            {pooja.items.map((item, idx) => (
-                              <span
-                                key={idx}
-                                className="text-xs bg-secondary/50 px-2 py-0.5 rounded-full"
-                              >
-                                {item}
-                              </span>
-                            ))}
-                          </div>
+            {loadingTypes ? (
+              <PoojaTypesLoadingSkeleton />
+            ) : typesError ? (
+              <div className="w-full py-8 text-center text-red-500">
+                <p>{typesError}</p>
+                <Button 
+                  variant="outline" 
+                  onClick={fetchPoojaTypes} 
+                  className="mt-3"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <CarouselContent>
+                {poojaTypes.map((pooja) => (
+                  <CarouselItem key={pooja.id} className="md:basis-1/2 lg:basis-1/3 p-2">
+                    <motion.div 
+                      whileHover={{ y: -5 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="overflow-hidden border shadow-md h-full">
+                        <div className="relative h-48 w-full overflow-hidden">
+                          <Badge className="absolute top-3 right-3 z-10 bg-primary text-primary-foreground">
+                            Popular
+                          </Badge>
+                          <Image
+                            src={pooja.images[0] || "/placeholder.svg"}
+                            alt={pooja.name}
+                            fill
+                            className="object-cover transition-transform duration-300 hover:scale-105"
+                          />
                         </div>
-                      </CardContent>
-                      <CardFooter className="px-5 py-3 border-t bg-secondary/10">
-                        <Button variant="default" className="w-full">
-                          Book Now
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  </motion.div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
+                        <CardContent className="p-5">
+                          <h3 className="text-xl font-bold mb-2">{pooja.name}</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {pooja.description}
+                          </p>
+                          <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wider mb-2 text-muted-foreground">
+                              Includes:
+                            </h4>
+                            <div className="flex flex-wrap gap-1.5">
+                              {pooja.requiredItems.map((item, idx) => (
+                                <span
+                                  key={idx}
+                                  className="text-xs bg-secondary/50 px-2 py-0.5 rounded-full"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                        <CardFooter className="px-5 py-3 border-t bg-secondary/10">
+                          <Button variant="default" className="w-full">
+                            Book Now
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    </motion.div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            )}
             <div className="hidden md:flex">
               <CarouselPrevious className="-left-12" />
               <CarouselNext className="-right-12" />
