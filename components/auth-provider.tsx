@@ -4,6 +4,7 @@ import type React from "react"
 
 import { createContext, useContext, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import axios from "axios"
 
 // Define user types
 type UserRole = "Pandit" | "Delivery" | "Darkstore" | null
@@ -23,12 +24,16 @@ type AuthContextType = {
   user: User
   login: (email: string, password: string) => Promise<void>
   register: (name: string, email: string, phone: string, password: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   loading: boolean
+  checkAuth: () => Promise<boolean>
 }
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+// Configure axios to include credentials with every request
+axios.defaults.withCredentials = true;
 
 // Auth provider component
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -40,13 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // In a real app, this would be an API call to validate the session
-        const storedUser = localStorage.getItem("kaaryakram_user")
-        if (storedUser) {
-          setUser(JSON.parse(storedUser))
+        setLoading(true)
+        
+        // Call the validate API endpoint to check if user is logged in
+        const response = await axios.get('/api/auth/validate')
+        if (response.data.success) {
+          setUser(response.data.user)
+        } else {
+          setUser(null)
         }
       } catch (error) {
         console.error("Authentication error:", error)
+        setUser(null)
       } finally {
         setLoading(false)
       }
@@ -55,28 +65,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [])
 
+  // Check authentication status
+  const checkAuth = async (): Promise<boolean> => {
+    try {
+      // Validate session with API
+      const response = await axios.get('/api/auth/validate')
+      return response.data.success
+    } catch (error) {
+      console.error("Authentication validation error:", error)
+      return false
+    }
+  }
+
   // Login function
   const login = async (email: string, password: string) => {
     setLoading(true)
     try {
-      // In a real app, this would be an API call
-      // Simulating API call with timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock user data - in a real app, this would come from the API
-      const userData = {
-        id: "user_123",
-        name: "Test User",
-        email,
-        phone: "+91 98765 43210",
-        role: null as UserRole,
-        isAdmin: email === "admin@example.com",
-        isVerified: true,
+      // Call the login API with credentials
+      const response = await axios.post('/api/auth/login', { email, password })
+      
+      if (response.data.success) {
+        setUser(response.data.user)
+        router.push("/")
+      } else {
+        throw new Error(response.data.message || "Login failed")
       }
-
-      setUser(userData)
-      localStorage.setItem("kaaryakram_user", JSON.stringify(userData))
-      router.push("/")
     } catch (error) {
       console.error("Login error:", error)
       throw error
@@ -89,24 +102,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (name: string, email: string, phone: string, password: string) => {
     setLoading(true)
     try {
-      // In a real app, this would be an API call
-      // Simulating API call with timeout
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock user data - in a real app, this would come from the API
-      const userData = {
-        id: "user_" + Date.now(),
-        name,
-        email,
-        phone,
-        role: null as UserRole,
-        isAdmin: false,
-        isVerified: true,
+      // Call the register API
+      const response = await axios.post('/api/auth/register', { 
+        name, 
+        email, 
+        phone, 
+        password,
+        confirmPassword: password // Required by registerSchema
+      })
+      
+      if (response.data.success) {
+        setUser(response.data.user)
+        router.push("/")
+      } else {
+        throw new Error(response.data.message || "Registration failed")
       }
-
-      setUser(userData)
-      localStorage.setItem("kaaryakram_user", JSON.stringify(userData))
-      router.push("/")
     } catch (error) {
       console.error("Registration error:", error)
       throw error
@@ -116,13 +126,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Logout function
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem("kaaryakram_user")
-    router.push("/")
+  const logout = async () => {
+    try {
+      // Call the logout API
+      await axios.post('/api/auth/logout')
+      setUser(null)
+      router.push("/")
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
   }
 
-  return <AuthContext.Provider value={{ user, login, register, logout, loading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, login, register, logout, loading, checkAuth }}>{children}</AuthContext.Provider>
 }
 
 // Custom hook to use auth context
