@@ -10,7 +10,7 @@ connect();
 export async function POST(request: NextRequest) {
   try {
     // Get current token
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
     
     // If token exists, try to invalidate it in the database
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Clear the token cookie regardless
-    cookies().set({
+    cookieStore.set({
       name: "token",
       value: "",
       httpOnly: true,

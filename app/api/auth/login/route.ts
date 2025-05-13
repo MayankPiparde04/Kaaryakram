@@ -55,7 +55,8 @@ export async function POST(request: NextRequest) {
     );
     
     // Set token in cookie
-    cookies().set({
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: "token",
       value: token,
       httpOnly: true,
