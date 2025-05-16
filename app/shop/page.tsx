@@ -70,6 +70,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useCart } from "@/components/cart-context";
 
 // Define schemas for validation with flexibility
 const productSchema = z
@@ -114,6 +115,7 @@ type Product = z.infer<typeof productSchema>;
 
 export default function ShopPage() {
   const { toast } = useToast();
+  const { addItem } = useCart(); // Import addItem from cart context
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [priceRange, setPriceRange] = useState([0, 10000]);
@@ -221,11 +223,30 @@ export default function ShopPage() {
     }
   });
 
-  const addToCart = (productId: string, productName: string) => {
-    toast({
-      title: "Added to cart",
-      description: `${productName} has been added to your cart.`,
-    });
+  // Updated addToCart function that actually adds to cart
+  const addToCart = async (productId: string, product: Product) => {
+    try {
+      await addItem(
+        productId,
+        1, // Default quantity of 1
+        product.price,
+        product.name,
+        product.image,
+        product.category
+      );
+      
+      toast({
+        title: "Added to cart",
+        description: `${product.name} has been added to your cart.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart.",
+        variant: "destructive",
+      });
+      console.error("Error adding to cart:", error);
+    }
   };
 
   // Toggle product in wishlist
@@ -904,9 +925,7 @@ export default function ShopPage() {
                             <Button
                               variant="default"
                               className="w-full"
-                              onClick={() =>
-                                addToCart(product.id, product.name)
-                              }
+                              onClick={() => addToCart(product.id, product)}
                             >
                               <ShoppingCart className="h-4 w-4 mr-2" />
                               Add to Cart
@@ -960,9 +979,7 @@ export default function ShopPage() {
                               </p>
                               <div className="flex items-center justify-between mt-4">
                                 <Button
-                                  onClick={() =>
-                                    addToCart(product.id, product.name)
-                                  }
+                                  onClick={() => addToCart(product.id, product)}
                                 >
                                   <ShoppingCart className="h-4 w-4 mr-2" />
                                   Add to Cart
@@ -1075,9 +1092,7 @@ export default function ShopPage() {
                 <div className="space-y-4 mt-auto">
                   <div className="flex items-center gap-3">
                     <Button
-                      onClick={() =>
-                        addToCart(selectedProduct.id, selectedProduct.name)
-                      }
+                      onClick={() => addToCart(selectedProduct.id, selectedProduct)}
                       className="flex-1"
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />

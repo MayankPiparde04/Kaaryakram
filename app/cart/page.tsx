@@ -30,13 +30,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -44,81 +37,56 @@ import {
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-
-// Mock cart data
-const initialCartItems = [
-  {
-    id: 1,
-    name: "Ghee Diya",
-    price: 199,
-    quantity: 2,
-    image: "/poojaitems/ghee.png?height=100&width=100",
-    category: "samagri",
-    stockRemaining: 15,
-  },
-  {
-    id: 2,
-    name: "Kumkum",
-    price: 99,
-    quantity: 1,
-    image: "/poojaitems/kumkum.webp?height=100&width=100",
-    category: "samagri",
-    stockRemaining: 30,
-  },
-  {
-    id: 3,
-    name: "Satyanarayan Pooja",
-    price: 5999,
-    quantity: 1,
-    image: "/poojas/Satyanarayan_pooja.png?height=100&width=100",
-    category: "pooja",
-    date: "2023-08-15",
-    time: "Morning",
-  },
-  {
-    id: 6,
-    name: "Coconut",
-    price: 79,
-    quantity: 3,
-    image: "/poojaitems/coconut.webp?height=100&width=100",
-    category: "samagri",
-    stockRemaining: 42,
-  },
-];
+import { useCart } from "@/components/cart-context";
 
 // Frequently bought together items
 const frequentlyBoughtTogether = [
   {
-    id: 4,
+    id: "recommended-1",
+    product: "recommended-1",
     name: "Incense Sticks",
     price: 149,
     image: "/poojaitems/agarbatti.png?height=100&width=100",
+    category: "Pooja Items",
   },
   {
-    id: 5,
+    id: "recommended-2",
+    product: "recommended-2",
     name: "Cotton Wicks",
     price: 35,
     image: "/poojaitems/cotton-wicks.png?height=100&width=100",
+    category: "Pooja Items",
   },
 ];
 
 export default function CartPage() {
   const { toast } = useToast();
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const {
+    cart,
+    isLoading,
+    error,
+    addItem,
+    removeItem,
+    updateQuantity,
+    clearCart,
+    applyPromoCode,
+    removePromoCode,
+    itemCount,
+  } = useCart();
+
   const [promoCode, setPromoCode] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
-  const [discount, setDiscount] = useState(0);
   const [deliveryOption, setDeliveryOption] = useState("standard");
   const [cartProgress, setCartProgress] = useState(0);
-  const [isAnimatingRemoval, setIsAnimatingRemoval] = useState<number | null>(
+  const [isAnimatingRemoval, setIsAnimatingRemoval] = useState<string | null>(
     null
   );
 
-  // Calculate cart totals
-  const subtotal = cartItems.reduce(
-    (total, item) => total + item.price * item.quantity,
-    0
-  );
+  // Get cart items and totals
+  const cartItems = cart?.items || [];
+  const subtotal = cart?.subtotal || 0;
+  const discount = cart?.discount || 0;
+
+  // Calculate additional values
   const deliveryFee = deliveryOption === "express" ? 99 : 49;
   const tax = Math.round(subtotal * 0.18); // 18% GST
   const total = subtotal + deliveryFee + tax - discount;
@@ -131,70 +99,88 @@ export default function CartPage() {
   }, [subtotal]);
 
   // Handle quantity change
-  const updateQuantity = (id: number, newQuantity: number) => {
+  const handleUpdateQuantity = async (
+    productId: string,
+    newQuantity: number
+  ) => {
     if (newQuantity < 1) return;
 
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === id ? { ...item, quantity: newQuantity } : item
-      )
-    );
-
-    toast({
-      title: "Cart updated",
-      description: "Item quantity has been updated",
-    });
+    try {
+      await updateQuantity(productId, newQuantity);
+      toast({
+        title: "Cart updated",
+        description: "Item quantity has been updated",
+      });
+    } catch (err) {
+      toast({
+        title: "Error updating cart",
+        description: error || "Failed to update item quantity",
+        variant: "destructive",
+      });
+    }
   };
 
   // Remove item from cart
-  const removeFromCart = (id: number) => {
-    setIsAnimatingRemoval(id);
+  const handleRemoveFromCart = async (productId: string) => {
+    setIsAnimatingRemoval(productId);
 
-    setTimeout(() => {
-      setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
+    setTimeout(async () => {
+      try {
+        await removeItem(productId);
+        toast({
+          title: "Item removed",
+          description: "Item has been removed from your cart",
+          variant: "destructive",
+        });
+      } catch (err) {
+        toast({
+          title: "Error removing item",
+          description: error || "Failed to remove item from cart",
+          variant: "destructive",
+        });
+      }
       setIsAnimatingRemoval(null);
-
-      toast({
-        title: "Item removed",
-        description: "Item has been removed from your cart",
-        variant: "destructive",
-      });
     }, 300);
   };
 
   // Apply promo code
-  const applyPromoCode = () => {
-    if (promoCode.toLowerCase() === "first10") {
-      const discountAmount = Math.round(subtotal * 0.1); // 10% discount
-      setDiscount(discountAmount);
-      setAppliedPromo(promoCode);
-
+  const handleApplyPromoCode = async () => {
+    try {
+      await applyPromoCode(promoCode);
       toast({
         title: "Promo code applied",
-        description: `You saved ₹${discountAmount} with this code!`,
+        description: `Discount has been applied to your order!`,
         variant: "default",
       });
-    } else {
+    } catch (err) {
       toast({
         title: "Invalid promo code",
-        description: "Please enter a valid promo code",
+        description: error || "Please enter a valid promo code",
         variant: "destructive",
       });
     }
   };
 
   // Add item to cart
-  const addItemToCart = (item: any) => {
-    const existingItem = cartItems.find((cartItem) => cartItem.id === item.id);
-
-    if (existingItem) {
-      updateQuantity(item.id, existingItem.quantity + 1);
-    } else {
-      setCartItems([...cartItems, { ...item, quantity: 1 }]);
-
+  const handleAddItemToCart = async (item: any) => {
+    try {
+      await addItem(
+        item.product,
+        1,
+        item.price,
+        item.name,
+        item.image,
+        item.category
+      );
       toast({
         title: "Item added",
         description: `${item.name} has been added to your cart`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error adding item",
+        description: error || "Failed to add item to cart",
+        variant: "destructive",
       });
     }
   };
@@ -215,6 +201,18 @@ export default function CartPage() {
     visible: { opacity: 1, y: 0 },
     exit: { opacity: 0, x: -100 },
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="container max-w-7xl mx-auto py-12 px-4 flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your cart...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Empty cart view
   if (cartItems.length === 0) {
@@ -266,7 +264,7 @@ export default function CartPage() {
         </Link>
         <h1 className="text-2xl md:text-3xl font-bold">Your Cart</h1>
         <Badge variant="secondary" className="ml-2">
-          {cartItems.length} items
+          {itemCount} item{itemCount !== 1 ? "s" : ""}
         </Badge>
       </div>
 
@@ -306,11 +304,11 @@ export default function CartPage() {
                 <AnimatePresence>
                   {cartItems.map((item) => (
                     <motion.div
-                      key={item.id}
+                      key={item.product}
                       variants={itemVariants}
                       exit="exit"
                       className={`rounded-lg border bg-card p-4 ${
-                        isAnimatingRemoval === item.id ? "opacity-50" : ""
+                        isAnimatingRemoval === item.product ? "opacity-50" : ""
                       }`}
                       style={{
                         transition: "all 300ms",
@@ -320,7 +318,7 @@ export default function CartPage() {
                         <div className="relative h-16 w-16 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
                           <Image
                             src={item.image || "/placeholder.svg"}
-                            alt={item.name}
+                            alt={item.name || "Product"}
                             fill
                             className="object-cover"
                           />
@@ -330,31 +328,16 @@ export default function CartPage() {
                           <div className="flex justify-between">
                             <div>
                               <h3 className="font-medium text-base">
-                                {item.name}
+                                {item.name || "Product"}
                               </h3>
-                              <Badge
-                                variant="outline"
-                                className="text-xs mt-1 capitalize"
-                              >
-                                {item.category}
-                              </Badge>
-
-                              {item.category === "pooja" && (
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-xs text-muted-foreground">
-                                    Date: {item.date} ({item.time})
-                                  </span>
-                                </div>
+                              {item.category && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs mt-1 capitalize"
+                                >
+                                  {item.category}
+                                </Badge>
                               )}
-
-                              {item.category === "samagri" &&
-                                item.stockRemaining < 20 && (
-                                  <div className="flex items-center gap-1 mt-1">
-                                    <span className="text-xs text-amber-500">
-                                      Only {item.stockRemaining} left in stock
-                                    </span>
-                                  </div>
-                                )}
                             </div>
 
                             <div className="text-right">
@@ -365,7 +348,10 @@ export default function CartPage() {
                                     size="icon"
                                     className="h-8 w-8 p-0"
                                     onClick={() =>
-                                      updateQuantity(item.id, item.quantity - 1)
+                                      handleUpdateQuantity(
+                                        item.product,
+                                        item.quantity - 1
+                                      )
                                     }
                                     disabled={item.quantity <= 1}
                                   >
@@ -381,7 +367,10 @@ export default function CartPage() {
                                     size="icon"
                                     className="h-8 w-8 p-0"
                                     onClick={() =>
-                                      updateQuantity(item.id, item.quantity + 1)
+                                      handleUpdateQuantity(
+                                        item.product,
+                                        item.quantity + 1
+                                      )
                                     }
                                   >
                                     <Plus className="h-3 w-3" />
@@ -392,7 +381,9 @@ export default function CartPage() {
                                   variant="ghost"
                                   size="icon"
                                   className="text-destructive hover:text-destructive/90"
-                                  onClick={() => removeFromCart(item.id)}
+                                  onClick={() =>
+                                    handleRemoveFromCart(item.product)
+                                  }
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -450,7 +441,7 @@ export default function CartPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => addItemToCart(item)}
+                        onClick={() => handleAddItemToCart(item)}
                       >
                         Add
                       </Button>
@@ -472,9 +463,7 @@ export default function CartPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Subtotal (
-                    {cartItems.reduce((acc, item) => acc + item.quantity, 0)}{" "}
-                    items)
+                    Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})
                   </span>
                   <span>₹{subtotal}</span>
                 </div>
@@ -572,20 +561,20 @@ export default function CartPage() {
                     placeholder="Enter code"
                     value={promoCode}
                     onChange={(e) => setPromoCode(e.target.value)}
-                    disabled={!!appliedPromo}
+                    disabled={!!cart?.promoCode}
                   />
                   <Button
                     variant="outline"
-                    onClick={applyPromoCode}
-                    disabled={!!appliedPromo || !promoCode}
+                    onClick={handleApplyPromoCode}
+                    disabled={!!cart?.promoCode || !promoCode}
                   >
                     Apply
                   </Button>
                 </div>
-                {appliedPromo && (
+                {cart?.promoCode && (
                   <div className="flex items-center gap-2 text-xs text-green-600 mt-2">
                     <CheckCircle2 className="h-3 w-3" />
-                    <span>Code "{appliedPromo}" applied successfully!</span>
+                    <span>Code "{cart.promoCode}" applied successfully!</span>
                   </div>
                 )}
               </div>

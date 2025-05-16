@@ -11,7 +11,7 @@ export const cartItemSchema = z.object({
 
 export const cartSchema = z.object({
   user: z.string(),  // User ID
-  items: z.array(cartItemSchema).default([]),
+  items: z.array(cartItemSchema).default([]), // Ensure items is always an array
   subtotal: z.number().min(0).default(0),
   discount: z.number().min(0).default(0),
   promoCode: z.string().optional(),
