@@ -31,6 +31,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth";
+import { useCart } from "@/components/cart-context"; // Import useCart hook
 import Image from "next/image";
 
 export default function Header() {
@@ -40,9 +41,7 @@ export default function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
-
-  // Mock cart items count - replace with actual cart state
-  const cartItemsCount = 3;
+  const { itemCount } = useCart(); // Get cart item count from context
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -379,7 +378,7 @@ export default function Header() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Cart Link */}
+              {/* Cart Link with dynamic item count */}
               <Link href="/cart">
                 <Button
                   variant="ghost"
@@ -388,9 +387,9 @@ export default function Header() {
                   className="relative"
                 >
                   <ShoppingCart className="h-5 w-5" />
-                  {cartItemsCount > 0 && (
+                  {itemCount > 0 && (
                     <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium flex items-center justify-center text-primary-foreground">
-                      {cartItemsCount}
+                      {itemCount}
                     </span>
                   )}
                 </Button>
@@ -505,9 +504,9 @@ export default function Header() {
                 className="relative"
               >
                 <ShoppingCart className="h-5 w-5" />
-                {cartItemsCount > 0 && (
+                {itemCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-[10px] font-medium flex items-center justify-center text-primary-foreground">
-                    {cartItemsCount}
+                    {itemCount}
                   </span>
                 )}
               </Button>
