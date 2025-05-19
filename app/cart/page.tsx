@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   Trash2,
@@ -59,6 +58,13 @@ const frequentlyBoughtTogether = [
   },
 ];
 
+// Update Link behavior to prevent reloads
+const NoReloadLink = ({ href, children }: { href: string, children: React.ReactNode }) => (
+  <Link href={href} prefetch={true} scroll={false}>
+    {children}
+  </Link>
+);
+
 export default function CartPage() {
   const { toast } = useToast();
   const {
@@ -77,129 +83,120 @@ export default function CartPage() {
   const [promoCode, setPromoCode] = useState("");
   const [deliveryOption, setDeliveryOption] = useState("standard");
   const [cartProgress, setCartProgress] = useState(0);
-  const [isAnimatingRemoval, setIsAnimatingRemoval] = useState<string | null>(
-    null
-  );
+  
+  // Simplified state - no animation tracking
+  const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
 
-  // Get cart items and totals
-  const cartItems = cart?.items || [];
-  const subtotal = cart?.subtotal || 0;
-  const discount = cart?.discount || 0;
+  // Memoize calculated values to avoid recalculations
+  const cartItems = useMemo(() => cart?.items || [], [cart?.items]);
+  const subtotal = useMemo(() => cart?.subtotal || 0, [cart?.subtotal]);
+  const discount = useMemo(() => cart?.discount || 0, [cart?.discount]);
 
-  // Calculate additional values
-  const deliveryFee = deliveryOption === "express" ? 99 : 49;
-  const tax = Math.round(subtotal * 0.18); // 18% GST
-  const total = subtotal + deliveryFee + tax - discount;
+  // Calculate proper cart totals manually to ensure values are correct
+  const manualSubtotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }, [cartItems]);
+  
+  // Use the calculated subtotal instead of relying on cart.subtotal which might be 0
+  const effectiveSubtotal = subtotal > 0 ? subtotal : manualSubtotal;
+  
+  // Calculate additional values with memoization based on effective subtotal
+  const deliveryFee = useMemo(() => deliveryOption === "express" ? 99 : 49, [deliveryOption]);
+  const tax = useMemo(() => Math.round(effectiveSubtotal * 0.18), [effectiveSubtotal]); // 18% GST
+  const total = useMemo(() => effectiveSubtotal + deliveryFee + tax - discount, 
+                        [effectiveSubtotal, deliveryFee, tax, discount]);
 
-  // Progress towards free shipping
+  // Progress towards free shipping with debouncing
   useEffect(() => {
     const freeShippingThreshold = 1000;
-    const progress = Math.min((subtotal / freeShippingThreshold) * 100, 100);
-    setCartProgress(progress);
-  }, [subtotal]);
+    const newProgress = Math.min((effectiveSubtotal / freeShippingThreshold) * 100, 100);
+    // Only update if it changed significantly (more than 1%)
+    if (Math.abs(newProgress - cartProgress) > 1) {
+      setCartProgress(newProgress);
+    }
+  }, [effectiveSubtotal, cartProgress]);
 
-  // Handle quantity change
-  const handleUpdateQuantity = async (
-    productId: string,
-    newQuantity: number
-  ) => {
+  // Helper function to prevent default form behavior
+  const preventDefault = (e: React.MouseEvent | React.FormEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  // Remove item from cart with explicit event prevention
+  const handleRemoveFromCart = (productId: string, e?: React.MouseEvent) => {
+    preventDefault(e); // Prevent any default behavior
+    
+    // Call the removeItem function from context
+    removeItem(productId).catch((err) => {
+      toast({
+        title: "Error removing item",
+        description: "Failed to remove item from cart",
+        variant: "destructive",
+      });
+    });
+  };
+
+  // Improved quantity change handler
+  const handleUpdateQuantity = (productId: string, newQuantity: number, e?: React.MouseEvent) => {
+    preventDefault(e); // Prevent default behavior
+    
     if (newQuantity < 1) return;
 
-    try {
-      await updateQuantity(productId, newQuantity);
-      toast({
-        title: "Cart updated",
-        description: "Item quantity has been updated",
-      });
-    } catch (err) {
+    updateQuantity(productId, newQuantity).catch((err) => {
       toast({
         title: "Error updating cart",
-        description: error || "Failed to update item quantity",
+        description: "Failed to update item quantity",
         variant: "destructive",
       });
-    }
+    });
   };
 
-  // Remove item from cart
-  const handleRemoveFromCart = async (productId: string) => {
-    setIsAnimatingRemoval(productId);
+  // Form submission handler for promo code
+  const handleApplyPromoCode = (e?: React.FormEvent) => {
+    preventDefault(e);
+    if (!promoCode || !cart) return;
 
-    setTimeout(async () => {
-      try {
-        await removeItem(productId);
+    applyPromoCode(promoCode)
+      .then(() => {
         toast({
-          title: "Item removed",
-          description: "Item has been removed from your cart",
+          title: "Promo code applied",
+          description: `Discount has been applied to your order!`,
+        });
+      })
+      .catch((err) => {
+        toast({
+          title: "Invalid promo code",
+          description: "Please enter a valid promo code",
           variant: "destructive",
         });
-      } catch (err) {
+      });
+  };
+
+  // Add item to cart - simplified with no loading state
+  const handleAddItemToCart = (item: any) => {
+    addItem(
+      item.product,
+      1,
+      item.price,
+      item.name,
+      item.image,
+      item.category
+    )
+      .then(() => {
         toast({
-          title: "Error removing item",
-          description: error || "Failed to remove item from cart",
+          title: "Item added",
+          description: `${item.name} has been added to your cart`,
+        });
+      })
+      .catch((err) => {
+        toast({
+          title: "Error adding item",
+          description: "Failed to add item to cart",
           variant: "destructive",
         });
-      }
-      setIsAnimatingRemoval(null);
-    }, 300);
-  };
-
-  // Apply promo code
-  const handleApplyPromoCode = async () => {
-    try {
-      await applyPromoCode(promoCode);
-      toast({
-        title: "Promo code applied",
-        description: `Discount has been applied to your order!`,
-        variant: "default",
       });
-    } catch (err) {
-      toast({
-        title: "Invalid promo code",
-        description: error || "Please enter a valid promo code",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Add item to cart
-  const handleAddItemToCart = async (item: any) => {
-    try {
-      await addItem(
-        item.product,
-        1,
-        item.price,
-        item.name,
-        item.image,
-        item.category
-      );
-      toast({
-        title: "Item added",
-        description: `${item.name} has been added to your cart`,
-      });
-    } catch (err) {
-      toast({
-        title: "Error adding item",
-        description: error || "Failed to add item to cart",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Animation variants
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 },
-    exit: { opacity: 0, x: -100 },
   };
 
   // Show loading state
@@ -227,11 +224,7 @@ export default function CartPage() {
           </Link>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-16 text-center"
-        >
+        <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="h-32 w-32 rounded-full bg-secondary/30 flex items-center justify-center mb-8">
             <ShoppingBag className="h-16 w-16 text-muted-foreground opacity-70" />
           </div>
@@ -248,7 +241,7 @@ export default function CartPage() {
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           </Link>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -256,26 +249,26 @@ export default function CartPage() {
   return (
     <div className="container max-w-7xl mx-auto py-12 px-4">
       <div className="flex items-center gap-2 mb-8">
-        <Link href="/shop">
+        <NoReloadLink href="/shop">
           <Button variant="ghost" size="sm">
             <ChevronLeft className="h-4 w-4 mr-1" />
             Continue Shopping
           </Button>
-        </Link>
+        </NoReloadLink>
         <h1 className="text-2xl md:text-3xl font-bold">Your Cart</h1>
         <Badge variant="secondary" className="ml-2">
           {itemCount} item{itemCount !== 1 ? "s" : ""}
         </Badge>
       </div>
 
-      {/* Free shipping progress */}
-      {cartProgress < 100 && (
+      {/* Free shipping progress - only show when loaded */}
+      {!isLoading && cartProgress < 100 && (
         <Card className="mb-8 bg-secondary/10 border-dashed">
           <CardContent className="py-4">
             <div className="flex items-center gap-2 mb-2">
               <Truck className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm font-medium">
-                Add ₹{Math.max(0, 1000 - subtotal)} more for FREE shipping!
+                Add ₹{Math.max(0, Math.round(1000 - subtotal))} more for FREE shipping!
               </p>
             </div>
             <Progress value={cartProgress} className="h-2" />
@@ -295,113 +288,87 @@ export default function CartPage() {
               <CardTitle>Shopping Cart</CardTitle>
             </CardHeader>
             <CardContent>
-              <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-                className="space-y-4"
-              >
-                <AnimatePresence>
-                  {cartItems.map((item) => (
-                    <motion.div
-                      key={item.product}
-                      variants={itemVariants}
-                      exit="exit"
-                      className={`rounded-lg border bg-card p-4 ${
-                        isAnimatingRemoval === item.product ? "opacity-50" : ""
-                      }`}
-                      style={{
-                        transition: "all 300ms",
-                      }}
-                    >
-                      <div className="flex items-center">
-                        <div className="relative h-16 w-16 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
-                          <Image
-                            src={item.image || "/placeholder.svg"}
-                            alt={item.name || "Product"}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
+              <div className="space-y-4">
+                {cartItems.map((item) => (
+                  <div key={item.product} className="rounded-lg border bg-card p-4">
+                    <div className="flex items-center">
+                      <div className="relative h-16 w-16 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
+                        <Image
+                          src={item.image || "/placeholder.svg"}
+                          alt={item.name || "Product"}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
 
-                        <div className="ml-4 flex-grow">
-                          <div className="flex justify-between">
-                            <div>
-                              <h3 className="font-medium text-base">
-                                {item.name || "Product"}
-                              </h3>
-                              {item.category && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs mt-1 capitalize"
-                                >
-                                  {item.category}
-                                </Badge>
-                              )}
-                            </div>
+                      <div className="ml-4 flex-grow">
+                        <div className="flex justify-between">
+                          <div>
+                            <h3 className="font-medium text-base">
+                              {item.name || "Product"}
+                            </h3>
+                            {item.category && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs mt-1 capitalize"
+                              >
+                                {item.category}
+                              </Badge>
+                            )}
+                          </div>
 
-                            <div className="text-right">
-                              <div className="flex items-center space-x-2">
-                                <div className="flex items-center border rounded-md">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() =>
-                                      handleUpdateQuantity(
-                                        item.product,
-                                        item.quantity - 1
-                                      )
-                                    }
-                                    disabled={item.quantity <= 1}
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-
-                                  <span className="w-8 text-center text-sm">
-                                    {item.quantity}
-                                  </span>
-
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 p-0"
-                                    onClick={() =>
-                                      handleUpdateQuantity(
-                                        item.product,
-                                        item.quantity + 1
-                                      )
-                                    }
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                </div>
-
+                          <div className="text-right">
+                            <div className="flex items-center space-x-2">
+                              <div className="flex items-center border rounded-md">
                                 <Button
+                                  type="button" // Explicit button type
                                   variant="ghost"
                                   size="icon"
-                                  className="text-destructive hover:text-destructive/90"
-                                  onClick={() =>
-                                    handleRemoveFromCart(item.product)
-                                  }
+                                  className="h-8 w-8 p-0"
+                                  onClick={(e) => handleUpdateQuantity(item.product, item.quantity - 1, e)}
+                                  disabled={item.quantity <= 1}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+
+                                <span className="w-8 text-center text-sm">
+                                  {item.quantity}
+                                </span>
+
+                                <Button
+                                  type="button" // Explicit button type
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 p-0"
+                                  onClick={(e) => handleUpdateQuantity(item.product, item.quantity + 1, e)}
+                                >
+                                  <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
 
-                              <div className="mt-2 flex justify-end">
-                                <span className="font-medium">
-                                  ₹{item.price * item.quantity}
-                                </span>
-                              </div>
+                              <Button
+                                type="button" // Explicit button type
+                                variant="ghost"
+                                size="icon"
+                                className="text-destructive hover:text-destructive/90"
+                                onClick={(e) => handleRemoveFromCart(item.product, e)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="mt-2 flex justify-end">
+                              <span className="font-medium">
+                                ₹{item.price * item.quantity}
+                              </span>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </motion.div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -416,10 +383,8 @@ export default function CartPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {frequentlyBoughtTogether.map((item) => (
-                    <motion.div
+                    <div
                       key={item.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
                       className="flex items-center p-3 rounded-lg border bg-card"
                     >
                       <div className="relative h-12 w-12 rounded-md overflow-hidden bg-secondary/20">
@@ -445,7 +410,7 @@ export default function CartPage() {
                       >
                         Add
                       </Button>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -465,7 +430,7 @@ export default function CartPage() {
                   <span className="text-muted-foreground">
                     Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""})
                   </span>
-                  <span>₹{subtotal}</span>
+                  <span>₹{effectiveSubtotal}</span>
                 </div>
 
                 <div className="flex justify-between text-sm">
@@ -580,11 +545,11 @@ export default function CartPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Link href="/checkout">
+              <NoReloadLink href="/checkout">
                 <Button size="lg" className="w-full">
                   Proceed to Checkout
                 </Button>
-              </Link>
+              </NoReloadLink>
 
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <Gift className="h-3 w-3" />

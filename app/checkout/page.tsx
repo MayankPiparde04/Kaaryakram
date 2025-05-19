@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useCart } from "@/components/cart-context"; // Add this import for useCart
 import {
   ChevronLeft,
   CreditCard,
@@ -65,42 +66,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-
-// Mock cart items data
-const cartItems = [
-  {
-    id: 1,
-    name: "Ghee Diya",
-    price: 199,
-    quantity: 2,
-    image: "/poojaitems/ghee.png?height=100&width=100",
-    category: "samagri",
-  },
-  {
-    id: 2,
-    name: "Kumkum",
-    price: 99,
-    quantity: 1,
-    image: "/poojaitems/kumkum.webp?height=100&width=100",
-    category: "samagri",
-  },
-  {
-    id: 3,
-    name: "Satyanarayan Pooja",
-    price: 5999,
-    quantity: 1,
-    image: "/poojas/Satyanarayan_pooja.png?height=100&width=100",
-    category: "pooja",
-  },
-  {
-    id: 6,
-    name: "Coconut",
-    price: 79,
-    quantity: 3,
-    image: "/poojaitems/coconut.webp?height=100&width=100",
-    category: "samagri",
-  },
-];
 
 // Animation variants
 const containerVariants = {
@@ -229,8 +194,9 @@ export default function CheckoutPage() {
   const [deliveryDate, setDeliveryDate] = useState<string>("");
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  const [orderDetails, setOrderDetails] = useState(null);
   
-  // Form data
+  // Form data - MOVED UP before it's used
   const [formData, setFormData] = useState({
     // Personal details
     firstName: "",
@@ -265,8 +231,12 @@ export default function CheckoutPage() {
     billingPincode: "",
   });
   
-  // Calculate order totals
-  const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  // Get cart data from context
+  const { cart, clearCart, isLoading: cartLoading } = useCart();
+  
+  // Calculate order totals dynamically from cart
+  const cartItems = cart?.items || [];
+  const subtotal = cart?.subtotal || 0;
   const gst = Math.round(subtotal * 0.18); // 18% GST
   const deliveryFee = formData.deliveryMethod === "express" ? 99 : (subtotal >= 1000 ? 0 : 49);
   const total = subtotal + gst + deliveryFee;
@@ -296,19 +266,71 @@ export default function CheckoutPage() {
   const handleSubmitOrder = async () => {
     setIsLoading(true);
     
-    // Simulate API call with timeout
-    setTimeout(() => {
+    try {
+      // Simulate API call with timeout
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       // Generate random order number
       const generatedOrderNumber = `KRK${Math.floor(100000 + Math.random() * 900000)}`;
       setOrderNumber(generatedOrderNumber);
       
+      // Capture all order details for invoice and storage
+      const orderData = {
+        orderNumber: generatedOrderNumber,
+        cartItems,
+        subtotal,
+        gst,
+        deliveryFee,
+        total,
+        formData,
+        deliveryDate,
+        date: new Date().toISOString()
+      };
+      
+      // Store order information in local storage
+      localStorage.setItem('lastOrder', JSON.stringify(orderData));
+      
+      // Save order details for invoice generation
+      setOrderDetails(orderData);
+      
+      // Clear the cart after successful order (but keep local reference for invoice)
+      await clearCart();
+      
+      // Set order complete flag to show billing page
       setOrderComplete(true);
-      setIsLoading(false);
+      
+      // Scroll to top
       window.scrollTo(0, 0);
-    }, 1500);
+      
+      toast({
+        title: "Order Confirmed",
+        description: `Your order #${generatedOrderNumber} has been placed successfully.`,
+      });
+    } catch (error) {
+      console.error("Error placing order:", error);
+      toast({
+        title: "Error placing order",
+        description: "There was an issue processing your order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Generate delivery date options
+  // Only redirect if cart is empty AND there's no completed order
+  useEffect(() => {
+    // If cart has loaded, is empty, and no order has been completed yet
+    if (!cartLoading && (!cart || cart.items.length === 0) && !orderComplete && !orderNumber) {
+      toast({
+        title: "Cart is empty",
+        description: "Please add items to your cart before checkout.",
+      });
+      router.push('/shop'); // Redirect to shop instead of cart
+    }
+  }, [cart, cartLoading, orderComplete, orderNumber, router, toast]);
+  
+  // Generate delivery date options on mount
   useEffect(() => {
     const today = new Date();
     const tomorrow = new Date(today);
@@ -345,6 +367,7 @@ export default function CheckoutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Use saved cart data from orderDetails for consistent invoice */}
               <div>
                 <h3 className="font-medium mb-2">Delivery Information</h3>
                 <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm">
@@ -381,8 +404,9 @@ export default function CheckoutPage() {
               <div>
                 <h3 className="font-medium mb-2">Order Details</h3>
                 <div className="space-y-3">
-                  {cartItems.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
+                  {/* Use saved cart items to ensure they're still visible after cart clearing */}
+                  {(orderDetails?.cartItems || cartItems).map((item) => (
+                    <div key={item.id || item.product} className="flex items-center gap-3">
                       <div className="relative h-12 w-12 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
                         <Image
                           src={item.image || "/placeholder.svg"}
@@ -406,20 +430,22 @@ export default function CheckoutPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>₹{subtotal}</span>
+                  <span>₹{orderDetails?.subtotal || subtotal}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">GST (18%)</span>
-                  <span>₹{gst}</span>
+                  <span>₹{orderDetails?.gst || gst}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Delivery Fee</span>
-                  <span>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}</span>
+                  <span>
+                    {(orderDetails?.deliveryFee || deliveryFee) === 0 ? 'FREE' : `₹${orderDetails?.deliveryFee || deliveryFee}`}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
-                  <span>₹{total}</span>
+                  <span>₹{orderDetails?.total || total}</span>
                 </div>
               </div>
             </CardContent>
@@ -430,11 +456,11 @@ export default function CheckoutPage() {
                   orderNumber,
                   toast,
                   formData,
-                  cartItems,
-                  subtotal,
-                  gst,
-                  deliveryFee,
-                  total,
+                  cartItems: orderDetails?.cartItems || cartItems,
+                  subtotal: orderDetails?.subtotal || subtotal,
+                  gst: orderDetails?.gst || gst,
+                  deliveryFee: orderDetails?.deliveryFee || deliveryFee,
+                  total: orderDetails?.total || total,
                   deliveryDate
                 })}
                 className="flex items-center gap-2"
@@ -454,6 +480,18 @@ export default function CheckoutPage() {
             <p>Contact our support team at <a href="mailto:support@kaaryakram.com" className="text-primary hover:underline">support@kaaryakram.com</a></p>
           </div>
         </motion.div>
+      </div>
+    );
+  }
+
+  // Show loading when cart is loading and no order has been completed
+  if (cartLoading && !orderComplete) {
+    return (
+      <div className="container max-w-7xl mx-auto py-12 px-4 flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin h-10 w-10 rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your cart...</p>
+        </div>
       </div>
     );
   }
@@ -697,37 +735,30 @@ export default function CheckoutPage() {
                         )}
                       </Label>
                       <Input 
-                        id="deliveryDate" 
+                        id="deliveryDate"
                         type="date"
                         value={deliveryDate}
                         onChange={(e) => setDeliveryDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={new Date().toISOString().split("T")[0]} // Disable past dates
                         required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="deliveryInstructions">Delivery Instructions (optional)</Label>
-                      <Textarea 
-                        id="deliveryInstructions" 
-                        placeholder="Add any special instructions for delivery"
-                        value={formData.deliveryInstructions}
-                        onChange={(e) => updateFormData('deliveryInstructions', e.target.value)}
-                        className="resize-none"
-                        rows={3}
                       />
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="mt-6 flex justify-end">
-                  <Button size="lg" onClick={goToNextStep}>
-                    Continue to Payment <ArrowRight className="ml-2 h-4 w-4" />
+                <div className="flex justify-end gap-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={goToNextStep}
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    Continue to Payment
                   </Button>
                 </div>
               </motion.div>
             )}
-
+            
             {/* Step 2: Payment Information */}
             {currentStep === 2 && (
               <motion.div
@@ -741,238 +772,86 @@ export default function CheckoutPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <CreditCard className="h-5 w-5 text-primary" />
-                      Payment Method
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Tabs defaultValue="card" className="w-full" onValueChange={(value) => updateFormData('paymentMethod', value)}>
-                      <TabsList className="grid grid-cols-3 mb-4">
-                        <TabsTrigger value="card">Credit / Debit Card</TabsTrigger>
-                        <TabsTrigger value="upi">UPI</TabsTrigger>
-                        <TabsTrigger value="cod">Cash on Delivery</TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="card">
-                        <div className="space-y-4 mt-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="nameOnCard">Name on Card *</Label>
-                            <Input 
-                              id="nameOnCard" 
-                              placeholder="Enter name as on card"
-                              value={formData.nameOnCard}
-                              onChange={(e) => updateFormData('nameOnCard', e.target.value)}
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="cardNumber">Card Number *</Label>
-                            <Input 
-                              id="cardNumber" 
-                              placeholder="1234 5678 9012 3456"
-                              value={formData.cardNumber}
-                              onChange={(e) => updateFormData('cardNumber', e.target.value)}
-                            />
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="expiryDate">Expiry Date *</Label>
-                              <Input 
-                                id="expiryDate" 
-                                placeholder="MM/YY"
-                                value={formData.expiryDate}
-                                onChange={(e) => updateFormData('expiryDate', e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="cvv">CVV *</Label>
-                              <Input 
-                                id="cvv" 
-                                type="password"
-                                placeholder="123"
-                                maxLength={3}
-                                value={formData.cvv}
-                                onChange={(e) => updateFormData('cvv', e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2 pt-2">
-                            <Checkbox 
-                              id="savePaymentInfo" 
-                              checked={formData.savePaymentInfo}
-                              onCheckedChange={(checked) => updateFormData('savePaymentInfo', !!checked)}
-                            />
-                            <label
-                              htmlFor="savePaymentInfo"
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              Save payment information for future purchases
-                            </label>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mt-4 text-sm bg-muted p-3 rounded-md">
-                            <Shield className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">Your payment information is encrypted and secure.</span>
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="upi">
-                        <div className="space-y-4 mt-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="upiId">UPI ID *</Label>
-                            <div className="flex gap-2">
-                              <Input 
-                                id="upiId" 
-                                placeholder="name@bank"
-                                className="flex-1"
-                              />
-                              <Button variant="outline" className="shrink-0">
-                                Verify UPI
-                              </Button>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              You will receive a payment request on your UPI app.
-                            </p>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-3 mt-4">
-                            <Badge variant="outline" className="px-4 py-2 flex items-center gap-2">
-                              <Image src="/payment/gpay.png" width={20} height={20} alt="Google Pay" />
-                              Google Pay
-                            </Badge>
-                            <Badge variant="outline" className="px-4 py-2 flex items-center gap-2">
-                              <Image src="/payment/phonepe.png" width={20} height={20} alt="PhonePe" />
-                              PhonePe
-                            </Badge>
-                            <Badge variant="outline" className="px-4 py-2 flex items-center gap-2">
-                              <Image src="/payment/paytm.png" width={20} height={20} alt="Paytm" />
-                              Paytm
-                            </Badge>
-                            <Badge variant="outline" className="px-4 py-2 flex items-center gap-2">
-                              <Image src="/payment/bhim.png" width={20} height={20} alt="BHIM UPI" />
-                              BHIM
-                            </Badge>
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="cod">
-                        <div className="space-y-4 mt-2">
-                          <div className="bg-secondary/30 p-4 rounded-md flex items-start gap-3">
-                            <Package className="h-5 w-5 text-muted-foreground mt-0.5" />
-                            <div className="space-y-2">
-                              <p className="text-sm">
-                                Pay with cash when your order is delivered. Our delivery partner will collect the payment at the time of delivery.
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Note: For orders above ₹5000, a pre-authorization fee of ₹500 may be required.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                  </CardContent>
-                </Card>
-
-                <Card className="mb-6">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      Billing Address
+                      Payment Information
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="sameAsShipping" 
-                        checked={formData.sameAsShipping}
-                        onCheckedChange={(checked) => updateFormData('sameAsShipping', !!checked)}
-                      />
-                      <label
-                        htmlFor="sameAsShipping"
-                        className="text-sm font-medium leading-none"
-                      >
-                        Same as shipping address
-                      </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="nameOnCard">Name on Card *</Label>
+                        <Input 
+                          id="nameOnCard" 
+                          placeholder="Enter the name on the card"
+                          value={formData.nameOnCard}
+                          onChange={(e) => updateFormData('nameOnCard', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cardNumber">Card Number *</Label>
+                        <Input 
+                          id="cardNumber" 
+                          placeholder="Enter your card number"
+                          value={formData.cardNumber}
+                          onChange={(e) => updateFormData('cardNumber', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="expiryDate">Expiry Date *</Label>
+                        <Input 
+                          id="expiryDate" 
+                          placeholder="MM/YY"
+                          value={formData.expiryDate}
+                          onChange={(e) => updateFormData('expiryDate', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cvv">CVV *</Label>
+                        <Input 
+                          id="cvv" 
+                          placeholder="Enter CVV"
+                          value={formData.cvv}
+                          onChange={(e) => updateFormData('cvv', e.target.value)}
+                          required
+                        />
+                      </div>
                     </div>
                     
-                    <Collapsible 
-                      open={!formData.sameAsShipping}
-                      className="mt-4"
-                    >
-                      <CollapsibleContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="billingAddress">Address *</Label>
-                          <Input 
-                            id="billingAddress" 
-                            placeholder="Street address"
-                            value={formData.billingAddress}
-                            onChange={(e) => updateFormData('billingAddress', e.target.value)}
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="billingCity">City *</Label>
-                            <Input 
-                              id="billingCity" 
-                              placeholder="Enter your city"
-                              value={formData.billingCity}
-                              onChange={(e) => updateFormData('billingCity', e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="billingState">State *</Label>
-                            <Select
-                              value={formData.billingState}
-                              onValueChange={(value) => updateFormData('billingState', value)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select state" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="andhra-pradesh">Andhra Pradesh</SelectItem>
-                                <SelectItem value="delhi">Delhi</SelectItem>
-                                <SelectItem value="gujarat">Gujarat</SelectItem>
-                                <SelectItem value="karnataka">Karnataka</SelectItem>
-                                <SelectItem value="maharashtra">Maharashtra</SelectItem>
-                                <SelectItem value="tamil-nadu">Tamil Nadu</SelectItem>
-                                <SelectItem value="uttar-pradesh">Uttar Pradesh</SelectItem>
-                                {/* Add more states as needed */}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="billingPincode">PIN Code *</Label>
-                          <Input 
-                            id="billingPincode" 
-                            placeholder="Enter PIN code"
-                            value={formData.billingPincode}
-                            onChange={(e) => updateFormData('billingPincode', e.target.value)}
-                          />
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        id="savePaymentInfo" 
+                        checked={formData.savePaymentInfo}
+                        onCheckedChange={(checked) => updateFormData('savePaymentInfo', checked)}
+                      />
+                      <Label htmlFor="savePaymentInfo" className="text-sm text-muted-foreground">
+                        Save this payment information for future orders
+                      </Label>
+                    </div>
                   </CardContent>
                 </Card>
 
-                <div className="mt-6 flex justify-between">
-                  <Button variant="outline" onClick={goToPreviousStep}>
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Back to Shipping
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={goToPreviousStep} className="flex items-center gap-2">
+                    <ChevronLeft className="h-4 w-4" />
+                    Back to Shipping
                   </Button>
-                  <Button size="lg" onClick={goToNextStep}>
-                    Review Order <ArrowRight className="ml-2 h-4 w-4" />
+                  
+                  <Button 
+                    onClick={goToNextStep}
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    Review Order
                   </Button>
                 </div>
               </motion.div>
             )}
-
-            {/* Step 3: Review Order */}
+            
+            {/* Step 3: Order Review */}
             {currentStep === 3 && (
               <motion.div
                 key="review"
@@ -983,192 +862,157 @@ export default function CheckoutPage() {
               >
                 <Card className="mb-6">
                   <CardHeader>
-                    <CardTitle>Review Your Order</CardTitle>
-                    <CardDescription>
-                      Please review your order details before proceeding to payment
-                    </CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-primary" />
+                      Order Review
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">Personal Information</h3>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setCurrentStep(1)}
-                          className="h-8 flex items-center gap-1 text-primary"
-                        >
-                          <Pencil className="h-3 w-3" /> Edit
-                        </Button>
+                  <CardContent className="space-y-4">
+                    {/* Display saved order details for review */}
+                    <div className="space-y-3">
+                      {(orderDetails?.cartItems || cartItems).map((item) => (
+                        <div key={item.id || item.product} className="flex items-center gap-3">
+                          <div className="relative h-12 w-12 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
+                            <Image
+                              src={item.image || "/placeholder.svg"}
+                              alt={item.name}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="flex-grow">
+                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">Quantity: {item.quantity}</p>
+                          </div>
+                          <p className="font-medium">₹{item.price * item.quantity}</p>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>₹{orderDetails?.subtotal || subtotal}</span>
                       </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">GST (18%)</span>
+                        <span>₹{orderDetails?.gst || gst}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Delivery Fee</span>
+                        <span>
+                          {(orderDetails?.deliveryFee || deliveryFee) === 0 ? 'FREE' : `₹${orderDetails?.deliveryFee || deliveryFee}`}
+                        </span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-medium">
+                        <span>Total</span>
+                        <span>₹{orderDetails?.total || total}</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-2">Delivery Information</h3>
                       <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm">
-                        <p className="flex gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            {formData.firstName} {formData.lastName}
+                        <div className="flex items-start gap-2">
+                          <User className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <span className="text-muted-foreground">
+                            {formData.firstName} {formData.lastName} ({formData.phone})
                           </span>
-                        </p>
-                        <p className="flex gap-2">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          <span>{formData.phone}</span>
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">Shipping Address</h3>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setCurrentStep(1)}
-                          className="h-8 flex items-center gap-1 text-primary"
-                        >
-                          <Pencil className="h-3 w-3" /> Edit
-                        </Button>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-4 space-y-1 text-sm">
-                        <p>
-                          {formData.address}, 
-                          {formData.apartment && ` ${formData.apartment},`} 
-                        </p>
-                        <p>
-                          {formData.city}, {formData.state} - {formData.pincode}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">Delivery Information</h3>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setCurrentStep(1)}
-                          className="h-8 flex items-center gap-1 text-primary"
-                        >
-                          <Pencil className="h-3 w-3" /> Edit
-                        </Button>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm">
-                        <p className="flex gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            Delivery on {new Date(deliveryDate).toLocaleDateString('en-US', { 
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <span className="text-muted-foreground">
+                            {formData.address}, 
+                            {formData.apartment && ` ${formData.apartment},`} 
+                            {formData.city}, {formData.state} - {formData.pincode}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <span className="text-muted-foreground">
+                            Expected delivery: {new Date(deliveryDate).toLocaleDateString('en-US', { 
                               weekday: 'long', 
                               year: 'numeric', 
                               month: 'long', 
                               day: 'numeric' 
                             })}
                           </span>
-                        </p>
-                        <p className="flex gap-2">
-                          <Truck className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            {formData.deliveryMethod === "standard" 
-                              ? "Standard Delivery (2-3 business days)" 
-                              : "Express Delivery (Same/Next day)"
-                            }
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-medium mb-2">Payment Information</h3>
+                      <div className="bg-muted/30 rounded-lg p-4 space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <CreditCard className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <span className="text-muted-foreground">
+                            {formData.paymentMethod === "card" ? "Credit/Debit Card" : 
+                             formData.paymentMethod === "upi" ? "UPI" : "Cash on Delivery"}
                           </span>
-                        </p>
-                        {formData.deliveryInstructions && (
-                          <div className="mt-2 border-t border-border pt-2">
-                            <p className="text-xs text-muted-foreground">Delivery Instructions:</p>
-                            <p className="mt-1">{formData.deliveryInstructions}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-medium">Payment Method</h3>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setCurrentStep(2)}
-                          className="h-8 flex items-center gap-1 text-primary"
-                        >
-                          <Pencil className="h-3 w-3" /> Edit
-                        </Button>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-4 text-sm">
+                        </div>
                         {formData.paymentMethod === "card" && (
-                          <div className="flex gap-2 items-center">
-                            <CreditCard className="h-4 w-4 text-muted-foreground" />
-                            <span>
-                              Credit/Debit Card ending in {formData.cardNumber.slice(-4)}
-                            </span>
-                          </div>
-                        )}
-                        {formData.paymentMethod === "upi" && (
-                          <div className="flex gap-2 items-center">
-                            <Image src="/payment/upi.png" width={16} height={16} alt="UPI" />
-                            <span>UPI Payment</span>
-                          </div>
-                        )}
-                        {formData.paymentMethod === "cod" && (
-                          <div className="flex gap-2 items-center">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <span>Cash on Delivery</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="font-medium mb-3">Order Items</h3>
-                      <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                        {cartItems.map((item) => (
-                          <motion.div
-                            key={item.id}
-                            variants={itemVariants}
-                            className="flex items-center gap-3"
-                          >
-                            <div className="relative h-16 w-16 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
-                              <Image
-                                src={item.image || "/placeholder.svg"}
-                                alt={item.name}
-                                fill
-                                className="object-cover"
-                              />
+                          <>
+                            <div className="flex items-start gap-2">
+                              <span className="text-muted-foreground">
+                                Name on Card: {formData.nameOnCard}
+                              </span>
                             </div>
-                            <div className="flex-grow">
-                              <p className="font-medium">{item.name}</p>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs font-normal capitalize">
-                                  {item.category}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  Quantity: {item.quantity}
-                                </span>
-                              </div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-muted-foreground">
+                                Card Number: **** **** **** {formData.cardNumber.slice(-4)}
+                              </span>
                             </div>
-                            <p className="font-medium">₹{item.price * item.quantity}</p>
-                          </motion.div>
-                        ))}
+                          </>
+                        )}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="mt-6 flex justify-between">
-                  <Button variant="outline" onClick={goToPreviousStep}>
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Back to Payment
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={goToPreviousStep} className="flex items-center gap-2">
+                    <ChevronLeft className="h-4 w-4" />
+                    Back to Payment
                   </Button>
-                  <Button size="lg" onClick={handleSubmitOrder} disabled={isLoading}>
+                  
+                  <Button 
+                    onClick={handleSubmitOrder}
+                    className="flex items-center gap-2"
+                    isLoading={isLoading}
+                  >
                     {isLoading ? (
-                      <>Processing...</>
+                      <>
+                        <svg
+                          className="animate-spin h-4 w-4 mr-2 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4.293 12.293a1 1 0 011.414 0L12 18.586l6.293-6.293a1 1 0 011.414 1.414l-7 7a1 1 0 01-1.414 0l-7-7a1 1 0 010-1.414z"
+                          />
+                        </svg>
+                        Processing...
+                      </>
                     ) : (
-                      <>Place Order <ArrowRight className="ml-2 h-4 w-4" /></>
+                      <>
+                        <Check className="h-4 w-4" />
+                        Place Order
+                      </>
                     )}
                   </Button>
                 </div>
@@ -1177,103 +1021,57 @@ export default function CheckoutPage() {
           </AnimatePresence>
         </div>
 
-        {/* Order summary */}
-        <div className="lg:col-span-1">
-          <Card className="sticky top-8">
-            <CardHeader className="pb-2">
+        {/* Order summary sidebar */}
+        <div className="hidden lg:block">
+          <Card className="sticky top-20">
+            <CardHeader>
               <CardTitle>Order Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center text-sm">
-                    <span>
-                      {item.name} <span className="text-muted-foreground">× {item.quantity}</span>
-                    </span>
-                    <span>₹{item.price * item.quantity}</span>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Display saved order details for summary */}
+                {(orderDetails?.cartItems || cartItems).map((item) => (
+                  <div key={item.id || item.product} className="flex items-center gap-3">
+                    <div className="relative h-16 w-16 rounded-md overflow-hidden bg-secondary/20 flex-shrink-0">
+                      <Image
+                        src={item.image || "/placeholder.svg"}
+                        alt={item.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="flex-grow">
+                      <p className="text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">Quantity: {item.quantity}</p>
+                    </div>
+                    <p className="font-medium">₹{item.price * item.quantity}</p>
                   </div>
                 ))}
               </div>
-              
-              <Separator />
-              
-              <div className="space-y-2">
+            </CardContent>
+            <CardFooter>
+              <div className="w-full flex flex-col gap-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>₹{subtotal}</span>
+                  <span>₹{orderDetails?.subtotal || subtotal}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">GST (18%)</span>
-                  <span>₹{gst}</span>
+                  <span>₹{orderDetails?.gst || gst}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Delivery Fee</span>
                   <span>
-                    {deliveryFee === 0 ? (
-                      <span className="text-green-600">FREE</span>
-                    ) : (
-                      `₹${deliveryFee}`
-                    )}
+                    {(orderDetails?.deliveryFee || deliveryFee) === 0 ? 'FREE' : `₹${orderDetails?.deliveryFee || deliveryFee}`}
                   </span>
                 </div>
+                <Separator />
+                <div className="flex justify-between font-medium">
+                  <span>Total</span>
+                  <span>₹{orderDetails?.total || total}</span>
+                </div>
               </div>
-              
-              <Separator />
-              
-              <div className="flex justify-between font-medium">
-                <span>Total</span>
-                <span>₹{total}</span>
-              </div>
-              
-              {currentStep === 3 && (
-                <div className="mt-6">
-                  <div className="bg-muted/30 p-4 rounded-lg space-y-4">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="text-sm font-medium">You're almost there!</p>
-                        <p className="text-xs text-muted-foreground">Review your order and place it</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-green-600" />
-                      <div>
-                        <p className="text-sm font-medium">100% Secure Payment</p>
-                        <p className="text-xs text-muted-foreground">Your data is protected</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-            
-            {(currentStep === 1 || currentStep === 2) && (
-              <CardFooter className="flex-col space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2 w-full">
-                  <Truck className="h-4 w-4" />
-                  <span>Free delivery on orders above ₹1000</span>
-                </div>
-                <div className="flex items-center gap-2 w-full">
-                  <Shield className="h-4 w-4" />
-                  <span>Secure checkout powered by trusted partners</span>
-                </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-2 w-full cursor-help">
-                        <Package className="h-4 w-4" />
-                        <span className="underline underline-offset-2">Satisfaction guaranteed</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-xs">
-                        Not satisfied? Contact us within 7 days of your purchase and we'll make it right.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </CardFooter>
-            )}
+            </CardFooter>
           </Card>
         </div>
       </div>

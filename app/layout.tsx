@@ -8,6 +8,7 @@ import Footer from "@/components/footer"
 import { AuthProvider } from "@/components/auth-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { CartProvider } from "@/components/cart-context"
+import { cn } from "@/lib/utils"
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -22,15 +23,30 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans antialiased ${fontSans.variable}`}>
-        <AuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      <body className={cn("min-h-screen bg-background font-sans antialiased", fontSans.variable)}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
             <CartProvider>
+              {/* Add a way to detect initial load */}
+              <script
+                dangerouslySetInnerHTML={{
+                  __html: `
+                    if (document.cookie.includes('token=')) {
+                      window.dispatchEvent(new Event('auth-change'));
+                    }
+                  `,
+                }}
+              />
               <div className="flex min-h-screen flex-col">
                 <Header />
                 <main className="flex-1">{children}</main>
@@ -38,9 +54,9 @@ export default function RootLayout({
               </div>
               <Toaster />
             </CartProvider>
-          </ThemeProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
-  )
+  );
 }

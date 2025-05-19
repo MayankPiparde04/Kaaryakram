@@ -14,7 +14,7 @@ export const cartSchema = z.object({
   items: z.array(cartItemSchema).default([]), // Ensure items is always an array
   subtotal: z.number().min(0).default(0),
   discount: z.number().min(0).default(0),
-  promoCode: z.string().optional(),
+  promoCode: z.string().nullable().optional(),  // Allow promoCode to be null or undefined
   createdAt: z.date().optional().default(() => new Date()),
   updatedAt: z.date().optional().default(() => new Date()),
 });

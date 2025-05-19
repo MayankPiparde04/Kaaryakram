@@ -16,10 +16,11 @@ const quantitySchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { productId: string } }
+  context: { params: { productId: string } }
 ) {
   try {
-    const { productId } = params;
+    // Access productId from the awaited params object
+    const productId = context.params.productId;
     
     // Parse request body
     const body = await request.json();
@@ -28,7 +29,7 @@ export async function PATCH(
     const { quantity } = quantitySchema.parse(body);
     
     // Get token from cookies for user identification
-    const cookieStore =await cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get("token")?.value;
     
     // Default cart structure for unauthenticated users
@@ -47,8 +48,8 @@ export async function PATCH(
       }
     }
     
-    // Find cart for user
-    const cart = await CartModel.findOne({ user: userId });
+    // Find cart for user with lean() for plain JS objects
+    const cart = await CartModel.findOne({ user: userId }).lean();
     
     if (!cart) {
       return NextResponse.json(
@@ -57,47 +58,87 @@ export async function PATCH(
       );
     }
     
+    // Ensure cart.items is an array and directly process items
+    if (!Array.isArray(cart.items) || cart.items.length === 0) {
+      return NextResponse.json(
+        { error: "No items in cart" },
+        { status: 400 }
+      );
+    }
+    
+    // Log the operation for debugging
+    console.log(`Updating product ${productId} quantity to ${quantity}`);
+    console.log("Current cart items:", JSON.stringify(cart.items.map(item => item.product)));
+    
     // Find item in cart
     const itemIndex = cart.items.findIndex(item => item.product === productId);
     
     if (itemIndex === -1) {
       return NextResponse.json(
-        { error: "Item not found in cart" },
+        { error: "Item not found in cart", productId, cartItems: cart.items.map(item => item.product) },
         { status: 404 }
       );
     }
     
-    // Update quantity
-    cart.items[itemIndex].quantity = quantity;
+    // Use findOneAndUpdate with direct positional operator for atomic update
+    const result = await CartModel.findOneAndUpdate(
+      { 
+        user: userId,
+        "items.product": productId
+      },
+      { 
+        $set: { 
+          "items.$.quantity": quantity,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+    
+    if (!result) {
+      return NextResponse.json(
+        { error: "Failed to update cart" },
+        { status: 500 }
+      );
+    }
+    
+    // Ensure items is an array before using reduce
+    const items = Array.isArray(result.items) ? result.items : [];
     
     // Recalculate subtotal
-    cart.subtotal = cart.items.reduce(
+    const subtotal = items.reduce(
       (sum, item) => sum + (item.price * item.quantity),
       0
     );
     
-    // Save updated cart
-    await cart.save();
+    // Update subtotal
+    await CartModel.findOneAndUpdate(
+      { user: userId },
+      { $set: { subtotal } }
+    );
     
-    // Manually construct a plain object for validation
+    // Get fresh copy of cart with all updates
+    const updatedCart = await CartModel.findOne({ user: userId }).lean();
+    
+    // Prepare response
     const cartObject = {
       user: userId,
-      items: Array.isArray(cart.items) ? [...cart.items] : [],
-      subtotal: cart.subtotal,
-      discount: cart.discount || 0,
-      promoCode: cart.promoCode,
-      createdAt: cart.createdAt,
-      updatedAt: cart.updatedAt || new Date()
+      items: Array.isArray(updatedCart.items) ? updatedCart.items : [],
+      subtotal: updatedCart.subtotal || 0,
+      discount: updatedCart.discount || 0,
+      promoCode: updatedCart.promoCode,
+      createdAt: updatedCart.createdAt || new Date(),
+      updatedAt: new Date()
     };
     
-    // Validate with schema before returning
+    // Validate and return
     const validatedCart = cartSchema.parse(cartObject);
     
     return NextResponse.json(validatedCart, { status: 200 });
   } catch (error) {
     console.error("Error updating quantity:", error);
     return NextResponse.json(
-      { error: "Failed to update item quantity" },
+      { error: "Failed to update item quantity", details: error.message },
       { status: 500 }
     );
   }
