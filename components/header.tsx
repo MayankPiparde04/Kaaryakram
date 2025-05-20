@@ -141,7 +141,7 @@ export default function Header() {
               </Link>
 
               {/* Only show Join Us if user doesn't have a role */}
-              {!user.role && (
+              {/* {!user.role && ( */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -188,24 +188,8 @@ export default function Header() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
+              {/* )} */}
 
-              {/* Dashboard link based on role */}
-              {user.role && (
-                <Link
-                  href={`/dashboard/${user.role.toLowerCase()}`}
-                  className={`text-sm font-medium transition-colors hover:text-primary relative group ${
-                    pathname.includes("/dashboard") ? "text-primary" : ""
-                  }`}
-                >
-                  Dashboard
-                  <span
-                    className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full ${
-                      pathname.includes("/dashboard") ? "w-full" : ""
-                    }`}
-                  ></span>
-                </Link>
-              )}
 
               {/* Admin link if user is admin */}
               {user.isAdmin && (
