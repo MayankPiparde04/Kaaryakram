@@ -183,7 +183,7 @@ export default function Header() {
                         <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center mr-2">
                           <span className="text-xs">🏪</span>
                         </div>
-                        <span>Darkstore Owner</span>
+                        <span>Warehouse Owner</span>
                       </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -640,7 +640,7 @@ export default function Header() {
                             <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-xs">🏪</span>
                             </div>
-                            Become a Darkstore Owner
+                            Become a Warehouse Owner
                           </Link>
                         </div>
                       </div>

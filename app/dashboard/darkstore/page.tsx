@@ -326,7 +326,7 @@ export default function DarkstoreDashboardPage() {
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1">Darkstore Dashboard</h1>
+          <h1 className="text-3xl font-bold mb-1">Warehouse Dashboard</h1>
           <p className="text-muted-foreground">Manage your inventory, packages, and orders</p>
         </div>
         <div className="flex items-center gap-3">
@@ -569,7 +569,7 @@ export default function DarkstoreDashboardPage() {
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <CardTitle>Darkstore Management</CardTitle>
+              <CardTitle>Warehouse Management</CardTitle>
               <CardDescription>Manage your inventory, packages, and orders</CardDescription>
             </div>
             <div className="flex gap-2">

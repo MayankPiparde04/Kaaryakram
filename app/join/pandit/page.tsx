@@ -76,19 +76,19 @@ export default function PanditApplicationPage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [uploadedCertificates, setUploadedCertificates] = useState<string[]>([])
 
-  useEffect(() => {
-    if (!user) {
-      setShouldRedirect("/login")
-    } else if (user.role) {
-      setShouldRedirect("/")
-    }
-  }, [user])
+  // useEffect(() => {
+  //   if (!user) {
+  //     setShouldRedirect("/login")
+  //   } else if (user.role) {
+  //     setShouldRedirect("/")
+  //   }
+  // }, [user])
 
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.push(shouldRedirect)
-    }
-  }, [shouldRedirect, router])
+  // useEffect(() => {
+  //   if (shouldRedirect) {
+  //     router.push(shouldRedirect)
+  //   }
+  // }, [shouldRedirect, router])
 
   const form = useForm<z.infer<typeof panditSchema>>({
     resolver: zodResolver(panditSchema),

@@ -152,7 +152,7 @@ export default function AboutPage() {
           >
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10"></div>
             <Image
-              src="https://images.pexels.com/photos/5490978/pexels-photo-5490978.jpeg"
+            src="/HeroBG/Image2.jpg"
               alt="About Kaaryakram"
               fill
               className="object-cover"
